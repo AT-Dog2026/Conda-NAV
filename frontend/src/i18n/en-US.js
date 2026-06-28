@@ -122,7 +122,7 @@ export default {
     openDir: 'Open Directory',
   },
   settings: {
-    title: 'Configure Conda Path',
+    title: 'Settings',
     info: "Can't find conda?",
     infoDesc: 'If conda is not in system PATH, manually specify the full path to conda.exe. Mamba is optional.',
     autoDetect: 'Auto Detect',
@@ -152,6 +152,8 @@ export default {
     calcTimeout: 'Calculation timeout',
     calcTimeoutUnit: 'seconds',
     calcTimeoutHint: 'Stops waiting after this time (background calculation continues, available on next query)',
+    advanced: 'Advanced',
+    systemTools: 'System Tools',
   },
   onboarding: {
     title: 'Welcome to Conda NAV',

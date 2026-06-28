@@ -123,7 +123,7 @@ export default {
     openDir: '前往目录',
   },
   settings: {
-    title: '设置 Conda 路径',
+    title: '设置',
     info: '找不到 conda？',
     infoDesc: '如果 conda 不在系统 PATH 中，请手动指定 conda.exe 的完整路径。mamba 为可选项。',
     autoDetect: '自动探测',
@@ -153,6 +153,8 @@ export default {
     calcTimeout: '计算超时',
     calcTimeoutUnit: '秒',
     calcTimeoutHint: '超过该时间后将停止等待并返回结果（后台会继续计算，下次查询即可获取）',
+    advanced: '高级设置',
+    systemTools: '系统工具',
   },
   onboarding: {
     title: '欢迎使用 Conda NAV',
