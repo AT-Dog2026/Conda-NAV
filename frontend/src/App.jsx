@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
 import {
   Layout, Typography, ConfigProvider, theme, Space, Tag, message,
-  Modal, Input, Alert, Button, Tooltip, Dropdown,
+  Modal, Input, Alert, Button, Tooltip, Dropdown, Popconfirm,
 } from 'antd';
 import {
   SettingOutlined, ExclamationCircleOutlined, ToolOutlined,
@@ -197,34 +197,55 @@ export default function App() {
     }
   };
 
-  // ── 从 yml 导入 ─────────────────────────────────────
+  // ── 从 yml 或 requirements.txt 导入 ───────────────────────
   const [importFilePath, setImportFilePath] = useState(null);
+  const [importType, setImportType] = useState('yml'); // 'yml' | 'req'
 
-  const handleImportRequest = async () => {
-    if (isElectron()) {
-      const filePath = await api.openImportDialog({
-        title: '选择 environment.yml',
-        filters: [{ name: 'YAML', extensions: ['yml', 'yaml'] }],
-      });
-      if (!filePath) return;
-      setImportFilePath(filePath);
-    } else {
-      // 浏览器模式：用 input[type=file] 读取路径（无原生对话框回退到输入）
-      const input = document.createElement('input');
-      input.type = 'file'; input.accept = '.yml,.yaml';
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) setImportFilePath(file.webkitRelativePath || file.name);
-      };
-      input.click();
-      return;
+  const handleImportRequest = async (type = 'yml') => {
+    setImportType(type);
+    try {
+      if (isElectron()) {
+        const filters = type === 'yml'
+          ? [{ name: 'YAML', extensions: ['yml', 'yaml'] }]
+          : [{ name: 'Text', extensions: ['txt'] }];
+        const title = type === 'yml' ? '选择 environment.yml' : '选择 requirements.txt';
+        const filePath = await window.electron.openFileDialog({ title, filters });
+        if (!filePath) return;
+        setImportFilePath(filePath);
+        setModalMode('import');
+        setModalOpen(true);
+      } else {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = type === 'yml' ? '.yml,.yaml' : '.txt';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            setImportFilePath(file.webkitRelativePath || file.name);
+            setModalMode('import');
+            setModalOpen(true);
+          }
+        };
+        input.click();
+      }
+    } catch (err) {
+      console.error('Import dialog error:', err);
+      message.error(err.message || t('error.operationFailed'));
     }
-    setModalMode('import'); setModalOpen(true);
+  };
+
+  // 预填充任务初始状态，确保 TaskDrawer 初始化时有正确的 task_type
+  const initTask = (taskId, taskType) => {
+    setTasks((prev) => {
+      if (prev[taskId]) return prev; // 已有真实数据则跳过
+      return { ...prev, [taskId]: { task_id: taskId, task_type: taskType, status: 'pending', progress: 0, message: t('task.pending') } };
+    });
   };
 
   // 包操作任务提交后：加入任务追踪 + 打开任务抽屉
-  const handlePkgTaskSubmitted = (taskId) => {
+  const handlePkgTaskSubmitted = (taskId, taskType) => {
     if (taskId) {
+      initTask(taskId, taskType || '');
       setActiveTaskIds((prev) => [...prev, taskId]);
       setDrawerOpen(true);
     }
@@ -237,19 +258,33 @@ export default function App() {
       if (modalMode === 'create') {
         const res = await api.createEnvironment(values);
         taskId = res.data.task_id;
+        initTask(taskId, 'create');
       } else if (modalMode === 'import') {
         if (!importFilePath) {
-          message.error(t('env.selectYmlFile'));
+          message.error(importType === 'yml' ? t('env.selectYmlFile') : t('env.selectTxtFile'));
           return;
         }
-        const res = await api.importEnvironment({ file: importFilePath, name: values.name });
-        taskId = res.data.task_id;
+        // 导入操作：打开终端手动执行，不走任务队列
+        let command;
+        if (importType === 'yml') {
+          command = `conda env create -f "${importFilePath}" -n ${values.name}`;
+        } else if (values.is_existing) {
+          command = `conda activate ${values.name} && pip install -r "${importFilePath}"`;
+        } else {
+          const pyVer = values.python_version || '3.12';
+          command = `conda create -n ${values.name} python=${pyVer} -y && conda activate ${values.name} && pip install -r "${importFilePath}"`;
+        }
+        window.electron?.invoke('terminal:run-command', { command, workDir: projectDir || '.' });
+        addLog('cmd', 'terminal:run-command', command);
+        message.success(t('env.terminalOpened') || '终端已打开，请在终端中查看安装进度');
         setImportFilePath(null);
+        return; // 跳过后续任务流程
       } else {
         const res = await api.cloneEnvironment({
           source: cloneSource.name, target: values.name,
         });
         taskId = res.data.task_id;
+        initTask(taskId, 'clone');
       }
       setActiveTaskIds((prev) => [...prev, taskId]);
       setDrawerOpen(true);
@@ -266,6 +301,7 @@ export default function App() {
     setDeleteTarget(null);
     try {
       const res = await api.deleteEnvironment(name, confirmName);
+      initTask(res.data.task_id, 'delete');
       setActiveTaskIds((prev) => [...prev, res.data.task_id]);
       setDrawerOpen(true);
       message.success(t('task.submitted'));
@@ -277,6 +313,7 @@ export default function App() {
   const handleCleanInvalid = async (envPath) => {
     try {
       const res = await api.cleanInvalidEnvironment(envPath);
+      initTask(res.data.task_id, 'clean-invalid');
       setActiveTaskIds((prev) => [...prev, res.data.task_id]);
       setDrawerOpen(true);
       message.success(t('task.submitted'));
@@ -443,21 +480,27 @@ export default function App() {
           borderBottom: `1px solid ${isDarkMode ? '#363636' : '#f0f0f0'}`,
           padding: '0 24px',
         }}>
-          <Space>
-            <SettingOutlined style={{ fontSize: 22, color: '#4CAF50' }} />
-            <Title level={4} style={{ margin: 0, color: isDarkMode ? '#fff' : '#000' }}>{t('app.title')}</Title>
-
+          <Space style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <SettingOutlined style={{ fontSize: 22, color: '#4CAF50', flexShrink: 0 }} />
+            <Title level={4} style={{ margin: 0, color: isDarkMode ? '#fff' : '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{t('app.title')}</Title>
           </Space>
-          <Space>
+          <Space style={{ flexShrink: 0 }}>
             {st && <Tag icon={st.icon} color={st.color}>{st.text}</Tag>}
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               {t('env.create')}
             </Button>
-            {isElectron() && (
-              <Button icon={<ImportOutlined />} onClick={handleImportRequest}>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'yml', label: t('env.importYml'), onClick: () => handleImportRequest('yml') },
+                  { key: 'req', label: t('env.importReq'), onClick: () => handleImportRequest('req') },
+                ],
+              }}
+            >
+              <Button icon={<ImportOutlined />}>
                 {t('env.import') || '导入'}
               </Button>
-            )}
+            </Dropdown>
             <Button type="text" icon={<CodeOutlined />} onClick={() => setQuickCmdOpen(true)}>
               {t('app.quickCommands')}
             </Button>
@@ -468,16 +511,34 @@ export default function App() {
             <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
               {t('app.settings')}
             </Button>
-            <Button
-              type="text"
-              icon={themeMode === 'system' ? <SyncOutlined /> : isDarkMode ? <SunOutlined /> : <MoonOutlined />}
-              onClick={() => {
+            <Popconfirm
+              title={(() => {
+                const next = themeMode === 'dark' ? 'light' : themeMode === 'light' ? 'system' : 'dark';
+                const nameMap = { light: t('app.lightMode'), dark: t('app.darkMode'), system: t('app.systemMode') };
+                const themeName = nameMap[next] || '';
+                return (
+                  <span>
+                    {t('app.themeSwitchTo')}
+                    <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>{themeName}</span>
+                    {t('app.themeMayCause')}
+                  </span>
+                );
+              })()}
+              onConfirm={() => {
                 const next = themeMode === 'dark' ? 'light' : themeMode === 'light' ? 'system' : 'dark';
                 setThemeMode(next);
                 window.electron?.invoke('theme:set', next);
               }}
-              title={themeMode === 'dark' ? t('app.darkMode') : themeMode === 'light' ? t('app.lightMode') : t('app.systemMode')}
-            />
+              okText={t('app.switchTheme')}
+              cancelText={t('create.cancel')}
+              okButtonProps={{ danger: true, style: { fontWeight: 'bold' } }}
+            >
+              <Button
+                type="text"
+                icon={themeMode === 'system' ? <SyncOutlined /> : isDarkMode ? <SunOutlined /> : <MoonOutlined />}
+                title={themeMode === 'dark' ? t('app.darkMode') : themeMode === 'light' ? t('app.lightMode') : t('app.systemMode')}
+              />
+            </Popconfirm>
           </Space>
         </Header>
 
@@ -623,6 +684,8 @@ export default function App() {
             mode={modalMode}
             cloneSource={cloneSource}
             importFilePath={importFilePath}
+            importType={importType}
+            environments={environments}
             onCancel={() => { setModalOpen(false); setImportFilePath(null); }}
             onSubmit={handleSubmit}
           />

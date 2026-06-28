@@ -218,6 +218,21 @@ function importEnvironment({ file, name }) {
   return tasks.submitTask('import', { file, name }, invalidateEnvCache);
 }
 
+function importFromRequirements({ file, name, python_version }) {
+  if (!file) throw new Error('请选择 requirements.txt 文件');
+  if (!name) throw new Error('请输入新环境名');
+  const err = conda.validateNewEnvName(name);
+  if (err) throw new Error(err);
+  return tasks.submitTask('import-req', { file, name, python_version }, invalidateEnvCache);
+}
+
+function installRequirementsToEnv({ name, file }) {
+  if (!name) throw new Error('环境名不能为空');
+  if (!file) throw new Error('请选择 requirements.txt 文件');
+  conda.assertSafeEnvName(name);
+  return tasks.submitTask('install-req-to-env', { name, file }, invalidateEnvCache);
+}
+
 // ── 磁盘占用 ────────────────────────────────────────────
 // 成功结果的缓存：同一 env.path 在 SIZE_CACHE_TTL 内直接复用，避免重复扫盘
 // 计算超时（命中超时返回但后台仍在算）的中间态用 inflightSizeCache 跟踪，算完回填缓存
@@ -300,6 +315,14 @@ async function getEnvSize(name) {
   }
 }
 
+// ── 在终端执行命令（requirements.txt pip install 等） ───
+function openTerminalWithCmd({ command, workDir }) {
+  if (!command) throw new Error('命令不能为空');
+  const result = conda.openTerminalWithCmd(command, workDir || '.');
+  if (!result.ok) throw new Error(result.msg);
+  return result;
+}
+
 module.exports = {
   listEnvironments,
   getPackageCount,
@@ -327,6 +350,9 @@ module.exports = {
   upgradePackage,
   exportEnvironment,
   importEnvironment,
+  importFromRequirements,
+  installRequirementsToEnv,
   getEnvSize,
   getCalcEnvSizeSettings,
+  openTerminalWithCmd,
 };

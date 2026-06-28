@@ -22,6 +22,8 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
   const [openingSettingsDir, setOpeningSettingsDir] = useState(false);
   const [calcEnvSize, setCalcEnvSize] = useState(false);
   const [calcTimeoutSec, setCalcTimeoutSec] = useState(30);
+  const [autoStart, setAutoStart] = useState(false);
+  const [silentStart, setSilentStart] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -31,6 +33,8 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
           setMambaPath(res.data.mamba_path || '');
           setCalcEnvSize(!!res.data.calc_env_size);
           setCalcTimeoutSec(res.data.calc_timeout_sec ?? 30);
+          setAutoStart(!!res.data.auto_start);
+          setSilentStart(!!res.data.silent_start);
           setTestResult({ conda: null, mamba: null });
         })
         .catch(() => {});
@@ -108,7 +112,11 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
         onboarding_completed: true,
         calc_env_size: calcEnvSize,
         calc_timeout_sec: calcTimeoutSec,
+        auto_start: autoStart,
+        silent_start: silentStart,
       });
+      // 立即更新系统级开机自启设置
+      await api.setAutoStart(autoStart);
       message.success(t('settings.saved'));
       onSaved?.();
       onClose();
@@ -264,6 +272,32 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
               <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.calcTimeoutHint')}</Text>
             </div>
           </div>
+        )}
+
+        <Row gutter={[16, 12]} align="middle" style={{ marginTop: 12 }}>
+          <Col flex="none">
+            <Switch size="small" checked={autoStart} onChange={(v) => setAutoStart(v)} />
+          </Col>
+          <Col flex="auto">
+            <Text>{t('settings.autoStart')}</Text>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.autoStartDesc')}</Text>
+            </div>
+          </Col>
+        </Row>
+
+        {autoStart && (
+          <Row gutter={[16, 12]} align="middle" style={{ marginTop: 12, marginLeft: 32 }}>
+            <Col flex="none">
+              <Switch size="small" checked={silentStart} onChange={(v) => setSilentStart(v)} />
+            </Col>
+            <Col flex="auto">
+              <Text>{t('settings.silentStart')}</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.silentStartDesc')}</Text>
+              </div>
+            </Col>
+          </Row>
         )}
       </div>
 

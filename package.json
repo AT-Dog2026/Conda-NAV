@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Conda 环境管理桌面应用",
   "main": "electron/main.js",
-  "author": "AT-Dog-2",
+  "author": "AT-Dog2026",
   "license": "MIT",
   "scripts": {
     "install:all": "npm run install:fe && npm run install:electron",

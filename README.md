@@ -3,7 +3,7 @@
 轻量级 Conda 环境管理桌面应用 —— Anaconda Navigator 的轻量替代。
 
 ## Download下载
-https://github.com/AT-Dog-2/Conda-NAV/releases
+https://github.com/AT-Dog2026/Conda-NAV/releases
 ## 功能
 
 | 模块 | 功能 |
@@ -14,7 +14,7 @@ https://github.com/AT-Dog-2/Conda-NAV/releases
 | 包管理 | 查看已安装包、安装 / 卸载 / 升级，区分 conda 与 pip 来源 |
 | 激活与终端 | 一键激活环境，支持 CMD / Windows Terminal 打开 |
 | 项目目录 | 绑定项目目录，终端打开时自动 cd 到指定位置 |
-| 导出 / 导入 | 导出 `environment.yml`，从 yml 导入创建新环境 |
+| 导出 / 导入 | 导出 `environment.yml`；导入 yml / requirements.txt 均打开终端执行 |
 | 磁盘占用 | 可选后台计算每个环境的磁盘大小，超时自动降级 |
 | 清理无效环境 | 检测并一键清理无 `conda-meta` 的损坏环境 |
 | 托盘菜单 | 系统托盘常驻，右键切换环境 / 新建 / 打开终端 |
@@ -158,7 +158,6 @@ IPC 模式优先，以下接口在 `127.0.0.1` 上提供，用于浏览器模式
 | POST | `/api/environments/:name/activate` | 激活环境 |
 | POST | `/api/environments/:name/terminal` | 用终端打开 |
 | GET | `/api/environments/:name/export` | 导出 environment.yml |
-| POST | `/api/environments/import` | 从 yml 导入 |
 | GET | `/api/environments/:name/size` | 磁盘占用 |
 | GET | `/api/environments/calc-settings` | 计算大小策略设置 |
 

@@ -144,6 +144,14 @@ const api = {
     call('env:import', '/api/environments/import', { method: 'POST', body: data })
       .then((taskId) => ({ data: { task_id: taskId, message: '导入任务已提交' } })),
 
+  importFromRequirements: (data) =>
+    call('env:import-req', '/api/environments/import-requirements', { method: 'POST', body: data })
+      .then((taskId) => ({ data: { task_id: taskId, message: '导入任务已提交' } })),
+
+  installRequirementsToEnv: (data) =>
+    call('env:install-requirements', '/api/environments/install-requirements', { method: 'POST', body: data })
+      .then((taskId) => ({ data: { task_id: taskId, message: '安装任务已提交' } })),
+
   // ── 磁盘占用 ──────────────────────────────────────
   // 大环境文件多，遍历耗时可能较长，单独放宽 HTTP 超时
   getEnvSize: (name) =>
@@ -237,6 +245,11 @@ const api = {
 
   openSettingsDir: () =>
     call('settings:open-dir', '/api/settings/open-dir', { method: 'POST' })
+      .then((res) => ({ data: res })),
+
+  // ── 开机自启 ──────────────────────────────────────
+  setAutoStart: (enabled) =>
+    call('settings:set-auto-start', '/api/settings/auto-start', { method: 'POST', body: { enabled }, ipcArg: enabled })
       .then((res) => ({ data: res })),
 
   // ── 项目目录 ──────────────────────────────────────

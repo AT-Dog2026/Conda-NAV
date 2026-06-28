@@ -217,6 +217,20 @@ async function processTask(taskId, type, params, task) {
       const { ok, msg } = await conda.importEnv(condaExe, file, name, procHolder);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
+    } else if (type === 'import-req') {
+      const { file, name, python_version } = params;
+      const pyVer = python_version || '3.12';
+      update(10, `正在创建环境 '${name}' (Python ${pyVer})...`);
+      const { ok, msg } = await conda.importFromRequirements(condaExe, file, name, pyVer, procHolder);
+      update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
+
+    } else if (type === 'install-req-to-env') {
+      const { file, name } = params;
+      update(15, `正在在环境 '${name}' 中安装 requirements.txt...`);
+      const envPath = await resolveEnvPath(name);
+      const { ok, msg } = await conda.installRequirementsToEnv(condaExe, envPath, name, file, procHolder);
+      update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
+
     } else {
       update(0, `未知任务类型: ${type}`, 'failed');
     }

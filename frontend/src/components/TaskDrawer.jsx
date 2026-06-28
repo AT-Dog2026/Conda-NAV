@@ -13,6 +13,7 @@ const TASK_TYPE_KEYS = {
   create: 'task.create', clone: 'task.clone', delete: 'task.delete',
   install: 'pkg.install', uninstall: 'pkg.uninstall', upgrade: 'pkg.upgrade',
   import: 'task.import', 'clean-invalid': 'env.clean',
+  'install-req-to-env': 'pkg.installReq',
 };
 
 export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate, onClear, onCancel, onNewTask }) {
@@ -59,13 +60,11 @@ export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate
       open={open}
       onClose={onClose}
       width={420}
-      extra={
-        completed.length > 0 && (
-          <Button type="text" icon={<ClearOutlined />} onClick={onClear}>
-            {t('task.clearCompleted')}
-          </Button>
-        )
-      }
+      extra={completed.length > 0 && (
+        <Button type="text" size="small" icon={<ClearOutlined />} onClick={onClear}>
+          {t('task.clearCompleted')}
+        </Button>
+      )}
     >
       {taskIds.length === 0 ? (
         <Empty description={t('task.empty')} />
@@ -75,6 +74,14 @@ export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate
           if (!tk) return null;
           return <TaskItem key={id} task={tk} onCancel={() => onCancel(id)} />;
         })
+      )}
+      {/* 固定在底部的清除按钮，作为 extra 的兜底 */}
+      {completed.length > 0 && (
+        <div className="task-clear-footer">
+          <Button block icon={<ClearOutlined />} onClick={onClear}>
+            {t('task.clearCompleted')} ({completed.length})
+          </Button>
+        </div>
       )}
     </Drawer>
   );

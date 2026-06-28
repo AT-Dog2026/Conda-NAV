@@ -530,6 +530,12 @@ function launchTerminal(envName, activateCmd, workDir) {
   }
 }
 
+// ── 打开终端并执行自定义命令（用于 requirements.txt 等场景） ─
+function openTerminalWithCmd(command, workDir) {
+  return launchTerminal('Terminal', command, workDir || '.');
+}
+
+
 // ── 包名安全校验（会拼接到 conda/pip 命令） ──────────────
 // 允许字母、数字、下划线、连字符、点（如 scikit-learn）、可选 [version] / == 版本约束
 const PKG_NAME_RE = /^[A-Za-z0-9_.-]+(?:\s*[<>=!~]=?\s*[\w.*+~-]+)?$/;
@@ -700,6 +706,61 @@ async function importEnv(condaExe, filePath, name, procHolder = null) {
   return { ok: false, msg: stderr || stdout || '导入失败' };
 }
 
+// ── 从 requirements.txt 导入环境 ───────────────────────
+async function importFromRequirements(condaExe, filePath, name, pythonVersion = '3.12', procHolder = null) {
+  assertSafeEnvName(name);
+  assertSafePath(filePath, 'requirements.txt');
+  if (!fs.existsSync(filePath)) throw new Error(`文件不存在: ${filePath}`);
+
+  // Step 1: 创建空环境
+  const createResult = await createEnvironment(condaExe, name, pythonVersion, procHolder);
+  if (!createResult.ok) return createResult;
+
+  // Step 2: 获取环境路径
+  const envs = await listEnvironments(condaExe);
+  const env = envs.find(e => e.name === name);
+  if (!env) return { ok: false, msg: `环境 '${name}' 创建成功但无法找到路径` };
+
+  // Step 3: 使用 pip install -r requirements.txt
+  const pipExe = getPythonExe(env.path);
+  const { rc, stdout, stderr } = await run(
+    [pipExe, '-m', 'pip', 'install', '-r', filePath],
+    600000,
+    procHolder
+  );
+
+  if (rc === 0) return { ok: true, msg: `环境 '${name}' 从 requirements.txt 导入成功` };
+  return { ok: false, msg: stderr || stdout || 'pip 安装失败' };
+}
+
+/**
+ * 在已有的环境中安装 requirements.txt 中的包
+ * @param {string} condaExe conda 路径
+ * @param {string} envPath 环境路径
+ * @param {string} envName 环境名
+ * @param {string} filePath requirements.txt 文件路径
+ * @param {object} procHolder 进程持有者
+ * @returns {object} { ok, msg }
+ */
+async function installRequirementsToEnv(condaExe, envPath, envName, filePath, procHolder = null) {
+  assertSafeEnvName(envName);
+  assertSafePath(filePath, 'requirements.txt');
+  if (!fs.existsSync(filePath)) throw new Error(`文件不存在: ${filePath}`);
+  if (!fs.existsSync(envPath)) throw new Error(`环境路径不存在: ${envPath}`);
+
+  const pipExe = getPythonExe(envPath);
+  if (!fs.existsSync(pipExe)) return { ok: false, msg: '环境中找不到 python 可执行文件' };
+
+  const { rc, stdout, stderr } = await run(
+    [pipExe, '-m', 'pip', 'install', '-r', filePath],
+    600000,
+    procHolder
+  );
+
+  if (rc === 0) return { ok: true, msg: `已在环境 '${envName}' 中安装 requirements.txt 中的包` };
+  return { ok: false, msg: stderr || stdout || 'pip 安装失败' };
+}
+
 // ── 磁盘占用（异步遍历目录，返回字节数）──────────────
 // 并发分批 stat：大环境（几万个文件）下，串行 await stat 会非常慢，
 // 这里把同一批目录下的文件 stat 并发化（控制并发数避免句柄/内存暴涨）。
@@ -813,10 +874,13 @@ module.exports = {
   upgradePackage,
   exportEnv,
   importEnv,
+  importFromRequirements,
+  installRequirementsToEnv,
   getEnvSize,
   formatSize,
   openTerminal,
   openTerminalAtDir,
   getTerminalLauncher,
   launchTerminal,
+  openTerminalWithCmd,
 };

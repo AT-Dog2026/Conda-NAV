@@ -14,7 +14,7 @@ let activePort = null;
 function sendJSON(res, code, data, req) {
   const headers = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Confirmed',
   };
   // CORS 白名单：仅回显合法的 localhost origin
@@ -145,6 +145,14 @@ async function handleRoute(req, m, p, b) {
     return { code: 200, data: handlers.importEnvironment(b) };
   }
 
+  if (m === 'POST' && p === '/api/environments/import-requirements') {
+    return { code: 200, data: handlers.importFromRequirements(b) };
+  }
+
+  if (m === 'POST' && p === '/api/environments/install-requirements') {
+    return { code: 200, data: handlers.installRequirementsToEnv(b) };
+  }
+
   if (m === 'GET' && p === '/api/tasks') {
     return { code: 200, data: tasks.getTasksForPoll() };
   }
@@ -200,6 +208,17 @@ async function handleRoute(req, m, p, b) {
     const dirPath = settings.settingsDir;
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     shell.openPath(dirPath);
+    return { code: 200, data: { success: true } };
+  }
+
+  // ── 开机自启 ──────────────────────────────────────
+  if (m === 'POST' && p === '/api/settings/auto-start') {
+    const { app } = require('electron');
+    app.setLoginItemSettings({
+      openAtLogin: !!b.enabled,
+      path: app.getPath('exe'),
+    });
+    settings.saveSettings({ auto_start: !!b.enabled });
     return { code: 200, data: { success: true } };
   }
 
@@ -275,7 +294,7 @@ async function start() {
     if (req.method === 'OPTIONS') {
       const allow = auth.corsAllowValue(origin);
       const headers = {
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Confirmed',
       };
       if (allow) headers['Access-Control-Allow-Origin'] = allow;
@@ -290,7 +309,7 @@ async function start() {
       return;
     }
 
-    const b = m === 'POST' ? await parseBody(req) : {};
+    const b = (m === 'POST' || m === 'PUT' || m === 'DELETE') ? await parseBody(req) : {};
 
     try {
       const result = await handleRoute(req, m, p, b);

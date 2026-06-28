@@ -5,11 +5,12 @@ import {
 } from 'antd';
 import {
   SearchOutlined, ReloadOutlined, DownloadOutlined, DeleteOutlined,
-  ArrowUpOutlined, AppstoreOutlined,
+  ArrowUpOutlined, AppstoreOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { useI18n } from '../i18n/context';
 import { addLog } from './TerminalDrawer';
 import api from '../api';
+import { openFileDialog } from './common';
 
 const { Text } = Typography;
 
@@ -68,7 +69,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
 
       message.success(t('pkg.submitted'));
       addLog('success', t('pkg.submitted'), `${kind} ${pkgName} @ ${env.name}`);
-      onTaskSubmitted?.(res.data.task_id);
+      onTaskSubmitted?.(res.data.task_id, kind);
       if (kind === 'install') setInstallName('');
     } catch (err) {
       message.error(err.message || t('error.operationFailed'));
@@ -83,6 +84,24 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
       return;
     }
     submitPkgTask('install', name, installManager);
+  };
+
+  const handleInstallRequirements = async () => {
+    const filePath = await openFileDialog({
+      title: t('pkg.selectReq'),
+      filters: [{ name: 'requirements.txt', extensions: ['txt'] }, { name: '所有文件', extensions: ['*'] }],
+    });
+    if (!filePath) return;
+
+    try {
+      const res = await api.installRequirementsToEnv({ name: env.name, file: filePath });
+      message.success(t('pkg.submitted'));
+      addLog('success', t('pkg.submitted'), `install requirements.txt @ ${env.name}`);
+      onTaskSubmitted?.(res.data.task_id, 'install-req-to-env');
+    } catch (err) {
+      message.error(err.message || t('error.operationFailed'));
+      addLog('error', t('error.operationFailed'), err.message);
+    }
   };
 
   const columns = [
@@ -174,6 +193,9 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
         />
         <Button type="primary" icon={<DownloadOutlined />} onClick={handleInstall}>
           {t('pkg.install')}
+        </Button>
+        <Button icon={<UploadOutlined />} onClick={handleInstallRequirements}>
+          {t('pkg.installReq')}
         </Button>
       </Space.Compact>
 

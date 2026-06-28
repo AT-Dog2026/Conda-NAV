@@ -74,7 +74,8 @@ function createTrayIcon() {
 }
 
 // ── 窗口 ────────────────────────────────────────────
-async function createWindow() {
+async function createWindow(options = {}) {
+  const { showOnReady = true } = options;
   const icon = createDefaultIcon();
   mainWindow = new BrowserWindow({
     width: 1200, height: 800,
@@ -105,7 +106,7 @@ async function createWindow() {
     }
     if (!loaded) {
       setTimeout(async () => {
-        try { await mainWindow.loadURL('http://localhost:5173'); mainWindow.show(); }
+        try { await mainWindow.loadURL('http://localhost:5173'); if (showOnReady) mainWindow.show(); }
         catch { dialog.showErrorBox('前端加载失败', '请确保 npm run dev:fe 已启动'); }
       }, 5000);
     }
@@ -113,7 +114,7 @@ async function createWindow() {
     mainWindow.loadFile(getResourcePath('frontend', 'dist', 'index.html'));
   }
 
-  mainWindow.once('ready-to-show', () => { mainWindow.show(); });
+  mainWindow.once('ready-to-show', () => { if (showOnReady) mainWindow.show(); });
   mainWindow.on('maximize', () => { windowState.isMaximized = true; });
   mainWindow.on('unmaximize', () => { windowState.isMaximized = false; });
   mainWindow.on('minimize', () => { windowState.isMinimized = true; });
@@ -255,6 +256,7 @@ ipcMain.handle('env:upgrade', (_e, data) => handlers.upgradePackage(data));
 // ── 导出 / 导入 ───────────────────────────────────────
 ipcMain.handle('env:export', (_e, name) => handlers.exportEnvironment(name));
 ipcMain.handle('env:import', (_e, data) => handlers.importEnvironment(data));
+ipcMain.handle('env:install-requirements', (_e, data) => handlers.installRequirementsToEnv(data));
 
 // ── 任务取消 ─────────────────────────────────────────
 ipcMain.handle('task:cancel', (_e, taskId) => tasksService.cancelTask(taskId));
@@ -303,6 +305,16 @@ ipcMain.handle('settings:open-dir', async () => {
   const dirPath = settingsService.settingsDir;
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
   shell.openPath(dirPath);
+  return { success: true };
+});
+
+// ── 开机自启 ───────────────────────────────────────
+ipcMain.handle('settings:set-auto-start', async (_e, enabled) => {
+  app.setLoginItemSettings({
+    openAtLogin: !!enabled,
+    path: app.getPath('exe'),
+  });
+  settingsService.saveSettings({ auto_start: !!enabled });
   return { success: true };
 });
   ipcMain.handle('health', () => ({ status: 'ok' }));
@@ -355,6 +367,8 @@ ipcMain.handle('project:set-dir', (_e, dir) => handlers.setProjectDir(dir));
 ipcMain.handle('project:terminal', (_e, { envName, projectDir }) =>
   handlers.openProjectTerminal(envName, projectDir)
 );
+// ── 终端执行自定义命令（requirements.txt pip install 等）──
+ipcMain.handle('terminal:run-command', (_e, data) => handlers.openTerminalWithCmd(data));
 
 // ── 托盘菜单刷新 ────────────────────────────────────
 ipcMain.handle('tray:refresh', async () => {
@@ -408,8 +422,20 @@ app.whenReady().then(() => {
   console.log('isDev:', isDev, 'app.isPackaged:', app.isPackaged);
   // 初始化本地鉴权 token（持久化，跨重启稳定）
   console.log('本地 HTTP token 已就绪');
+
+  // 开机自启：读取设置并同步
+  const settings = settingsService.loadSettings();
+  if (settings.auto_start) {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      path: app.getPath('exe'),
+    });
+  }
+
   createTray();
-  createWindow();
+  // 静默自启：开机自启且静默时，不显示主窗口
+  const showOnReady = !(settings.auto_start && settings.silent_start);
+  createWindow({ showOnReady });
   // 延迟到下一个事件循环启动 HTTP API，不阻塞窗口首次渲染
   setImmediate(() => httpApi.start());
 

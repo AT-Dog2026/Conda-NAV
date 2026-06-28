@@ -42,6 +42,8 @@ function loadSettings() {
     project_dir: '',
     calc_env_size: false,
     calc_timeout_sec: 30,
+    auto_start: false,
+    silent_start: false,
   };
   return _settingsCache;
 }
@@ -65,6 +67,8 @@ function saveSettings(data) {
     project_dir: data.project_dir ?? current.project_dir ?? '',
     calc_env_size: data.calc_env_size ?? current.calc_env_size ?? false,
     calc_timeout_sec: normalizeCalcTimeoutSec(data.calc_timeout_sec ?? current.calc_timeout_sec),
+    auto_start: data.auto_start ?? current.auto_start ?? false,
+    silent_start: data.silent_start ?? current.silent_start ?? false,
   }, null, 2), 'utf-8');
 }
 
