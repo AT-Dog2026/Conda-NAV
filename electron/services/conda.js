@@ -757,12 +757,27 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+/** 执行任意 conda 命令（用于常用指令功能） */
+async function runCommand(condaExe, command) {
+  return new Promise((resolve) => {
+    const fullCmd = `${condaExe} ${command}`;
+    exec(fullCmd, { timeout: 30000 }, (error, stdout, stderr) => {
+      if (error) {
+        resolve(stderr || error.message);
+      } else {
+        resolve(stdout || '');
+      }
+    });
+  });
+}
+
 module.exports = {
   validateNewEnvName,
   assertSafeEnvName,
   assertSafePath,
   assertSafePkgName,
   run,
+  runCommand,
   readEnvMetadataFromDisk,
   readEnvMetadataFromDiskAsync,
   listEnvironments,

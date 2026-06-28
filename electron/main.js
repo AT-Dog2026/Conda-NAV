@@ -365,6 +365,35 @@ ipcMain.handle('tray:refresh', async () => {
 // ── 环境名列表（供托盘/右键菜单） ───────────────────
 ipcMain.handle('env:names', () => handlers.getEnvNames());
 
+// ── 指令集管理 ──────────────────────────────────────
+const commands = require('./services/commands');
+ipcMain.handle('commands:get', async () => {
+  return commands.getCategories();
+});
+ipcMain.handle('commands:add-category', async (_e, { name, nameEn }) => {
+  return commands.addCategory(name, nameEn);
+});
+ipcMain.handle('commands:update-category', async (_e, { id, name, nameEn }) => {
+  return commands.updateCategory(id, name, nameEn);
+});
+ipcMain.handle('commands:delete-category', async (_e, { id }) => {
+  commands.deleteCategory(id);
+  return { ok: true };
+});
+ipcMain.handle('commands:add-command', async (_e, { categoryId, command, description, descriptionEn }) => {
+  return commands.addCommand(categoryId, command, description, descriptionEn);
+});
+ipcMain.handle('commands:update-command', async (_e, { categoryId, commandId, command, description, descriptionEn }) => {
+  return commands.updateCommand(categoryId, commandId, command, description, descriptionEn);
+});
+ipcMain.handle('commands:delete-command', async (_e, { categoryId, commandId }) => {
+  commands.deleteCommand(categoryId, commandId);
+  return { ok: true };
+});
+ipcMain.handle('commands:reset', async () => {
+  return commands.resetToDefault();
+});
+
 // ── 窗口标题栏主题（跟随应用而非系统） ──────────────
 nativeTheme.themeSource = 'dark';
 ipcMain.handle('theme:set', (_e, isDark) => {

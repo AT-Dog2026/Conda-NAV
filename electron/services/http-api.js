@@ -6,6 +6,7 @@ const settings = require('./settings');
 const tasks = require('./tasks');
 const handlers = require('./handlers');
 const auth = require('./auth');
+const commands = require('./commands');
 
 const { PORT_CANDIDATES } = require('./constants');
 let activePort = null;
@@ -176,7 +177,7 @@ async function handleRoute(req, m, p, b) {
   }
 
   if (m === 'GET' && p === '/api/settings/conda-status') {
-    return { code: 200, data: handlers.checkCondaStatus() };
+    return { code: 200, data: await handlers.checkCondaStatus() };
   }
 
   if (m === 'POST' && p === '/api/settings/complete-onboarding') {
@@ -223,6 +224,41 @@ async function handleRoute(req, m, p, b) {
   // ── 托盘刷新（浏览器模式 stub） ────────────────────
   if (m === 'POST' && p === '/api/tray/refresh') {
     return { code: 200, data: { ok: true } };
+  }
+
+  // ── 指令集管理 ──────────────────────────────────────
+  if (m === 'GET' && p === '/api/commands') {
+    return { code: 200, data: commands.getCategories() };
+  }
+
+  if (m === 'POST' && p === '/api/commands/category') {
+    return { code: 200, data: commands.addCategory(b.name, b.nameEn) };
+  }
+
+  if (m === 'PUT' && p === '/api/commands/category') {
+    return { code: 200, data: commands.updateCategory(b.id, b.name, b.nameEn) };
+  }
+
+  if (m === 'DELETE' && p === '/api/commands/category') {
+    commands.deleteCategory(b.id);
+    return { code: 200, data: { ok: true } };
+  }
+
+  if (m === 'POST' && p === '/api/commands/command') {
+    return { code: 200, data: commands.addCommand(b.categoryId, b.command, b.description, b.descriptionEn) };
+  }
+
+  if (m === 'PUT' && p === '/api/commands/command') {
+    return { code: 200, data: commands.updateCommand(b.categoryId, b.commandId, b.command, b.description, b.descriptionEn) };
+  }
+
+  if (m === 'DELETE' && p === '/api/commands/command') {
+    commands.deleteCommand(b.categoryId, b.commandId);
+    return { code: 200, data: { ok: true } };
+  }
+
+  if (m === 'POST' && p === '/api/commands/reset') {
+    return { code: 200, data: commands.resetToDefault() };
   }
 
   return { code: 404, error: `Not Found: ${m} ${p}` };

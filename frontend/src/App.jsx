@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
 import {
   Layout, Typography, ConfigProvider, theme, Space, Tag, message,
-  Modal, Input, Alert, Button, Tooltip,
+  Modal, Input, Alert, Button, Tooltip, Dropdown,
 } from 'antd';
 import {
   SettingOutlined, ExclamationCircleOutlined, ToolOutlined,
@@ -18,6 +18,7 @@ const TaskDrawer = lazy(() => import('./components/TaskDrawer'));
 const SettingsModal = lazy(() => import('./components/SettingsModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const TerminalDrawer = lazy(() => import('./components/TerminalDrawer'));
+const CommandsModal = lazy(() => import('./components/CommandsModal'));
 import { addLog } from './components/TerminalDrawer';
 import { useI18n } from './i18n/context';
 import api, { isElectron } from './api';
@@ -52,6 +53,7 @@ export default function App() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [condaReady, setCondaReady] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [quickCmdOpen, setQuickCmdOpen] = useState(false);
 
   const [beStatus, setBeStatus] = useState('idle');
 
@@ -456,11 +458,14 @@ export default function App() {
                 {t('env.import') || '导入'}
               </Button>
             )}
+            <Button type="text" icon={<CodeOutlined />} onClick={() => setQuickCmdOpen(true)}>
+              {t('app.quickCommands')}
+            </Button>
             <Button type="text" icon={activeTaskIds.length > 0 ? <LoadingOutlined spin /> : <ToolOutlined />} onClick={() => setDrawerOpen(true)}>
               {t('app.tasks')}
               {activeTaskIds.length > 0 && <span style={{ marginLeft: 4 }}>({activeTaskIds.length})</span>}
             </Button>
-            <Button type="text" icon={<ToolOutlined />} onClick={() => setSettingsOpen(true)}>
+            <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
               {t('app.settings')}
             </Button>
             <Button
@@ -693,6 +698,15 @@ export default function App() {
           <TerminalDrawer
             open={terminalOpen}
             onClose={() => setTerminalOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {quickCmdOpen && (
+        <Suspense fallback={null}>
+          <CommandsModal
+            open={quickCmdOpen}
+            onClose={() => setQuickCmdOpen(false)}
           />
         </Suspense>
       )}

@@ -1,0 +1,61 @@
+{
+  "categories": [
+    {
+      "id": "env-info",
+      "name": "环境信息",
+      "nameEn": "Environment Info",
+      "commands": [
+        {
+          "id": "cmd-1",
+          "command": "conda info",
+          "description": "查看 conda 基本信息（版本、路径、平台）",
+          "descriptionEn": "Show conda info (version, path, platform)"
+        },
+        {
+          "id": "cmd-2",
+          "command": "conda env list",
+          "description": "列出所有环境及其路径",
+          "descriptionEn": "List all environments and their paths"
+        }
+      ]
+    },
+    {
+      "id": "maintenance",
+      "name": "维护清理",
+      "nameEn": "Maintenance",
+      "commands": [
+        {
+          "id": "cmd-3",
+          "command": "conda clean --all",
+          "description": "清理所有缓存（包、索引、锁文件）",
+          "descriptionEn": "Clean all cache (packages, index, lock files)"
+        },
+        {
+          "id": "cmd-4",
+          "command": "conda doctor",
+          "description": "诊断 conda 环境问题",
+          "descriptionEn": "Diagnose conda environment issues"
+        }
+      ]
+    },
+    {
+      "id": "update",
+      "name": "更新升级",
+      "nameEn": "Update",
+      "commands": [
+        {
+          "id": "cmd-5",
+          "command": "conda update conda",
+          "description": "更新 conda 本身",
+          "descriptionEn": "Update conda itself"
+        },
+        {
+          "id": "cmd-6",
+          "command": "conda update --all",
+          "description": "更新当前环境所有包",
+          "descriptionEn": "Update all packages in current env"
+        }
+      ]
+    }
+  ]
+}

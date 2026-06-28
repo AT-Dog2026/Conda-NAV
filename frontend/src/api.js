@@ -262,6 +262,24 @@ const api = {
   refreshTray: () =>
     call('tray:refresh', '/api/tray/refresh', { method: 'POST' }),
 
+  // ── 指令集管理 ──────────────────────────────────────
+  getCommands: () =>
+    call('commands:get', '/api/commands').then((data) => ({ data })),
+  addCategory: (body) =>
+    call('commands:add-category', '/api/commands/category', { method: 'POST', body }),
+  updateCategory: (body) =>
+    call('commands:update-category', '/api/commands/category', { method: 'PUT', body }),
+  deleteCategory: (body) =>
+    call('commands:delete-category', '/api/commands/category', { method: 'DELETE', body }),
+  addCommand: (body) =>
+    call('commands:add-command', '/api/commands/command', { method: 'POST', body }),
+  updateCommand: (body) =>
+    call('commands:update-command', '/api/commands/command', { method: 'PUT', body }),
+  deleteCommand: (body) =>
+    call('commands:delete-command', '/api/commands/command', { method: 'DELETE', body }),
+  resetCommands: () =>
+    call('commands:reset', '/api/commands/reset', { method: 'POST' }),
+
   // ── 目录选择对话框（复用已有的 invoke 通道） ──────
   openDirectoryDialog: (options) => {
     if (isElectron()) {
