@@ -179,6 +179,11 @@ async function handleRoute(req, m, p, b) {
       mamba_path: b.mamba_path ?? current.mamba_path ?? '',
       onboarding_completed: b.onboarding_completed ?? current.onboarding_completed ?? false,
       project_dir: b.project_dir ?? current.project_dir ?? '',
+      calc_env_size: b.calc_env_size ?? current.calc_env_size ?? false,
+      calc_timeout_sec: b.calc_timeout_sec ?? current.calc_timeout_sec ?? 30,
+      auto_start: b.auto_start ?? current.auto_start ?? false,
+      silent_start: b.silent_start ?? current.silent_start ?? false,
+      basic_op_mode: b.basic_op_mode ?? current.basic_op_mode ?? 'terminal',
     });
     handlers.invalidateEnvCache();
     return { code: 200, data: { success: true } };

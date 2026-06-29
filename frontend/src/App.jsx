@@ -66,6 +66,10 @@ export default function App() {
   // 项目目录
   const [projectDir, setProjectDir] = useState('');
 
+  // 基础操作方式设置
+  const [basicOpMode, setBasicOpMode] = useState('terminal');
+  const [condaExe, setCondaExe] = useState('conda');
+
   // 主题状态（dark / light / system），默认 dark
   const [themeMode, setThemeMode] = useState('dark');
   const [systemIsDark, setSystemIsDark] = useState(true);
@@ -103,6 +107,13 @@ export default function App() {
     // 加载项目目录
     api.getProjectDir()
       .then(res => setProjectDir(res.data.project_dir || ''))
+      .catch(() => {});
+    // 加载基础操作方式设置
+    api.getSettings()
+      .then(res => {
+        setBasicOpMode(res.data.basic_op_mode || 'terminal');
+        setCondaExe(res.data.conda_path || 'conda');
+      })
       .catch(() => {});
   }, [t]);
 
@@ -251,11 +262,34 @@ export default function App() {
     }
   };
 
+  // 终端模式：构造命令并打开 CMD 终端
+  const runInTerminal = (command, logLabel) => {
+    if (!window.electron?.invoke) {
+      message.error('当前环境不支持打开终端，请使用可视化队列模式');
+      addLog('error', 'terminal:unavailable', command);
+      return;
+    }
+    try {
+      window.electron.invoke('terminal:run-command', { command, workDir: projectDir || '.' });
+      addLog('cmd', logLabel, command);
+      message.success(t('env.terminalOpened'));
+    } catch (e) {
+      message.error(t('env.openTerminalFail') + ': ' + e.message);
+      addLog('error', logLabel, e.message);
+    }
+  };
+
   const handleSubmit = async (values) => {
     setModalOpen(false);
     let taskId;
     try {
       if (modalMode === 'create') {
+        if (basicOpMode === 'terminal') {
+          const pyVer = values.python_version || '3.12';
+          const command = `"${condaExe}" create -n ${values.name} python=${pyVer} -y`;
+          runInTerminal(command, 'create:terminal');
+          return;
+        }
         const res = await api.createEnvironment(values);
         taskId = res.data.task_id;
         initTask(taskId, 'create');
@@ -274,12 +308,16 @@ export default function App() {
           const pyVer = values.python_version || '3.12';
           command = `conda create -n ${values.name} python=${pyVer} -y && conda activate ${values.name} && pip install -r "${importFilePath}"`;
         }
-        window.electron?.invoke('terminal:run-command', { command, workDir: projectDir || '.' });
-        addLog('cmd', 'terminal:run-command', command);
-        message.success(t('env.terminalOpened') || '终端已打开，请在终端中查看安装进度');
+        runInTerminal(command, 'import:terminal');
         setImportFilePath(null);
         return; // 跳过后续任务流程
       } else {
+        // clone mode
+        if (basicOpMode === 'terminal') {
+          const command = `"${condaExe}" create -n ${values.name} --clone ${cloneSource.name} -y`;
+          runInTerminal(command, 'clone:terminal');
+          return;
+        }
         const res = await api.cloneEnvironment({
           source: cloneSource.name, target: values.name,
         });
@@ -299,7 +337,19 @@ export default function App() {
   const handleDeleteConfirm = async (confirmName) => {
     const name = deleteTarget.name;
     setDeleteTarget(null);
+    
+    // 名称不匹配直接拒绝
+    if ((confirmName || '').toLowerCase() !== name.toLowerCase()) {
+      message.error(t('error.deleteCancel'));
+      return;
+    }
+
     try {
+      if (basicOpMode === 'terminal') {
+        const command = `"${condaExe}" env remove -n ${name} -y`;
+        runInTerminal(command, 'delete:terminal');
+        return;
+      }
       const res = await api.deleteEnvironment(name, confirmName);
       initTask(res.data.task_id, 'delete');
       setActiveTaskIds((prev) => [...prev, res.data.task_id]);
@@ -420,12 +470,12 @@ export default function App() {
   const handleClearTasks = useCallback(() => {
     setActiveTaskIds((prev) => prev.filter((id) => {
       const task = tasks[id];
-      return task && task.status !== 'completed' && task.status !== 'failed';
+      return task && task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled';
     }));
     setTasks((prev) => {
       const next = {};
       Object.keys(prev).forEach((id) => {
-        if (prev[id] && prev[id].status !== 'completed' && prev[id].status !== 'failed') {
+        if (prev[id] && prev[id].status !== 'completed' && prev[id].status !== 'failed' && prev[id].status !== 'cancelled') {
           next[id] = prev[id];
         }
       });
@@ -474,6 +524,8 @@ export default function App() {
       }}
     >
       <Layout style={{ minHeight: '100vh' }}>
+        {/* ═══ 固定顶部 ═══════════════════════════════════ */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
         <Header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: isDarkMode ? '#1f1f1f' : '#fff',
@@ -637,6 +689,8 @@ export default function App() {
             )}
           </div>
         )}
+        </div>
+        {/* ═══ 可滚动内容 ═══════════════════════════════════ */}
 
         <Content style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
           {!condaReady && !onboardingOpen && (
@@ -750,6 +804,10 @@ export default function App() {
                 setCondaReady(!!res.data.ready);
                 if (res.data.ready) fetchEnvironments();
               });
+              api.getSettings().then(res => {
+                setBasicOpMode(res.data.basic_op_mode || 'terminal');
+                setCondaExe(res.data.conda_path || 'conda');
+              }).catch(() => {});
               setCalcSignal((n) => n + 1);
             }}
           />

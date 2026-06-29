@@ -28,7 +28,7 @@ https://github.com/AT-Dog2026/Conda-NAV/releases
 |:---|:---|
 | 桌面框架 | Electron 42 |
 | 前端 | React 18 + Ant Design 5 + Vite 5 |
-| 前后端通信 | IPC（优先） + HTTP API（浏览器模式兜底） |
+| 前后端通信 | IPC（优先） + HTTP API（浏览器模式调试） |
 | Conda 调用 | `child_process` 子进程，自动兼容 mamba |
 | 任务队列 | 内存 Map + FIFO 串行执行，支持取消 |
 | 打包 | electron-builder → NSIS 安装包 + 绿色便携版 |

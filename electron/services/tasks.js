@@ -5,10 +5,13 @@ const settings = require('./settings');
 const tasks = new Map();
 const queue = [];
 let processing = false;
+let lastActivity = 0;
+let currentProcessingId = null;
 let mainWindow = null;
 
 const TASK_RETENTION_MS = 30 * 60 * 1000;
 const MAX_TASKS = 100;
+const QUEUE_STUCK_MS = 15 * 60 * 1000; // 15分钟无活动视为卡死
 
 function setMainWindow(win) { mainWindow = win; }
 
@@ -17,6 +20,7 @@ function pushUpdate(task) {
     // 移除不可序列化的属性（_procHolder 包含子进程对象）
     const cleanTask = { ...task };
     delete cleanTask._procHolder;
+    // 保留 _stdout 用于前端展示（限制大小）
     mainWindow.webContents.send('task:update', cleanTask);
   }
 }
@@ -36,6 +40,15 @@ function cleanupOldTasks() {
 
 function submitTask(type, params, onComplete) {
   const taskId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // 提取展示用环境名
+  let envName = '';
+  if (type === 'clone') envName = params.target || '';
+  else if (type === 'delete') envName = params.name || '';
+  else if (type === 'create' || type === 'install' || type === 'uninstall' || type === 'upgrade' || type === 'import' || type === 'import-req' || type === 'install-req-to-env') {
+    envName = params.name || '';
+  } else if (type === 'clean-invalid') {
+    envName = require('path').basename(params.envPath || '');
+  }
   const task = {
     task_id: taskId,
     task_type: type,
@@ -44,6 +57,7 @@ function submitTask(type, params, onComplete) {
     message: '排队中...',
     created_at: new Date().toISOString(),
     finished_at: null,
+    envName,
   };
   tasks.set(taskId, task);
   queue.push({ taskId, type, params, task, onComplete });
@@ -53,17 +67,63 @@ function submitTask(type, params, onComplete) {
 }
 
 async function processQueue() {
-  if (processing) return;
-  processing = true;
-
-  while (queue.length > 0) {
-    const item = queue.shift();
-    await processTask(item.taskId, item.type, item.params, item.task);
-    if (item.onComplete) item.onComplete();
-    cleanupOldTasks();
+  // 恢复机制：如果上一次处理卡死（15分钟无活动），重置锁
+  if (processing && Date.now() - lastActivity > QUEUE_STUCK_MS) {
+    console.error('processQueue: detected stuck queue (last activity', Math.round((Date.now() - lastActivity) / 60000), 'min ago), resetting');
+    // 将当前卡住的任务标记为失败
+    if (currentProcessingId) {
+      const t = tasks.get(currentProcessingId);
+      if (t && t.status === 'running') {
+        t.status = 'failed';
+        t.message = '任务超时，进程被强制终止';
+        t.finished_at = new Date().toISOString();
+        try { if (t._procHolder?.proc) t._procHolder.proc.kill(); } catch {}
+        pushUpdate(t);
+      }
+    }
+    processing = false;
+    currentProcessingId = null;
   }
 
-  processing = false;
+  if (processing) return;
+  processing = true;
+  lastActivity = Date.now();
+
+  try {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      currentProcessingId = item.taskId;
+      lastActivity = Date.now();
+
+      try {
+        // 每个任务最多执行 15 分钟，超时直接放弃
+        const result = await Promise.race([
+          processTask(item.taskId, item.type, item.params, item.task),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('任务执行超时')), QUEUE_STUCK_MS)),
+        ]);
+        try { if (item.onComplete) item.onComplete(); } catch (e) { console.error('Task onComplete error:', e.message); }
+      } catch (e) {
+        console.error('Task processing error:', e.message);
+        // 如果超时，尝试杀掉子进程
+        const t = tasks.get(item.taskId);
+        if (t) {
+          try { if (t._procHolder?.proc) t._procHolder.proc.kill(); } catch {}
+          if (t.status === 'pending' || t.status === 'running') {
+            t.status = 'failed';
+            t.message = `任务异常: ${e.message}`;
+            t.finished_at = new Date().toISOString();
+            pushUpdate(t);
+          }
+        }
+      }
+      currentProcessingId = null;
+      lastActivity = Date.now();
+      cleanupOldTasks();
+    }
+  } finally {
+    processing = false;
+    currentProcessingId = null;
+  }
 }
 
 function getTask(taskId) {
@@ -141,6 +201,24 @@ async function processTask(taskId, type, params, task) {
     pushUpdate(task);
   };
 
+  // 实时 conda 终端输出收集（过滤 JSON 避免显示包列表）
+  const onCmdStdout = (chunk) => {
+    if (!task._stdout) task._stdout = '';
+    const cleaned = chunk.split('\n')
+      .filter(line => {
+        const t = line.trim();
+        if (!t) return false;                          // 跳过空行
+        if (/^\s*[{}\[\],]/.test(line)) return false;  // 跳过 JSON 结构行
+        if (/^\s*"\w+":/.test(t)) return false;         // 跳过 JSON 键值对行
+        return true;
+      })
+      .join('\n');
+    if (cleaned) {
+      task._stdout = (task._stdout + cleaned + '\n').slice(-3000);
+      pushUpdate(task);
+    }
+  };
+
   try {
     const condaExe = settings.getCondaCmd();
     const procHolder = { proc: null };
@@ -152,19 +230,71 @@ async function processTask(taskId, type, params, task) {
       const { name } = params;
       const pyVer = params.python_version || '3.12';
       update(20, `正在创建环境 '${name}'...`);
-      const { ok, msg } = await conda.createEnvironment(condaExe, name, pyVer, procHolder);
-      update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
+      const { ok, msg } = await conda.createEnvironment(condaExe, name, pyVer, procHolder, onCmdStdout);
+      if (ok) {
+        // 验证：确认新环境已在列表中且包含包
+        let verified = false;
+        try {
+          const envsAfter = await conda.listEnvironments(condaExe);
+          const newEnv = envsAfter.find(e => e.name === name);
+          if (newEnv && newEnv.package_count > 0) {
+            update(100, `环境 "${name}" 创建成功 ✓ — ${newEnv.package_count} 个包`, 'completed');
+            verified = true;
+          }
+        } catch {}
+        if (!verified) update(100, msg, 'completed');
+      } else {
+        update(0, msg, 'failed');
+      }
 
     } else if (type === 'clone') {
       const { source, target } = params;
+      // 克隆前记录源环境包数量
+      let srcPkgCount = -1;
+      try {
+        const envs = await conda.listEnvironments(condaExe);
+        const srcEnv = envs.find(e => e.name === source);
+        if (srcEnv) srcPkgCount = srcEnv.packages;
+      } catch {}
       update(20, `正在克隆 '${source}' -> '${target}'...`);
-      const { ok, msg } = await conda.cloneEnvironment(condaExe, source, target, procHolder);
-      update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
+      const { ok, msg, prefix } = await conda.cloneEnvironment(condaExe, source, target, procHolder, onCmdStdout);
+      if (ok) {
+        // 严谨验证：用 conda list -p <path> --json 直接查询
+        let verified = false;
+        try {
+          const verifyPath = prefix || '';
+          if (verifyPath) {
+            const tgtPkgCount = await conda.getEnvPackageCount(condaExe, verifyPath);
+            if (tgtPkgCount > 0) {
+              if (srcPkgCount >= 0 && tgtPkgCount === srcPkgCount) {
+                update(100, `环境 "${target}" 克隆成功 ✓ — 包数量 ${tgtPkgCount}，与源环境一致`, 'completed');
+              } else {
+                update(100, `环境 "${target}" 克隆成功 ✓ — ${tgtPkgCount} 个包`, 'completed');
+              }
+              verified = true;
+            }
+          }
+        } catch {}
+        // 回退：用 env list 检测
+        if (!verified) {
+          try {
+            const envsAfter = await conda.listEnvironments(condaExe);
+            const tgtEnv = envsAfter.find(e => e.name === target);
+            if (tgtEnv && tgtEnv.packages > 0) {
+              update(100, `环境 "${target}" 克隆完成 (${tgtEnv.packages} 个包)`, 'completed');
+              verified = true;
+            }
+          } catch {}
+        }
+        if (!verified) update(100, msg, 'completed');
+      } else {
+        update(0, msg, 'failed');
+      }
 
     } else if (type === 'delete') {
       const { name } = params;
       update(30, `正在删除环境 '${name}'...`);
-      const { ok, msg } = await conda.removeEnvironment(condaExe, name, procHolder);
+      const { ok, msg } = await conda.removeEnvironment(condaExe, name, procHolder, onCmdStdout);
       if (!ok && msg.includes('DirectoryNotACondaEnvironmentError')) {
         let envPath = '';
         try {
@@ -180,8 +310,20 @@ async function processTask(taskId, type, params, task) {
         }
         task.extra = { envPath, canForceDelete: true };
         update(0, msg, 'failed');
+      } else if (ok) {
+        // 验证：检查环境是否已从列表中消失
+        let verified = false;
+        try {
+          const envsAfter = await conda.listEnvironments(condaExe);
+          const stillExists = envsAfter.some(e => e.name === name);
+          if (!stillExists) {
+            update(100, `环境 "${name}" 已删除 ✓`, 'completed');
+            verified = true;
+          }
+        } catch {}
+        if (!verified) update(100, msg, 'completed');
       } else {
-        update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
+        update(0, msg, 'failed');
       }
 
     } else if (type === 'clean-invalid') {
@@ -194,41 +336,41 @@ async function processTask(taskId, type, params, task) {
       const { name, package: pkg, manager } = params;
       update(15, `正在安装 '${pkg}' (${manager}) 到 '${name}'...`);
       const envPath = await resolveEnvPath(name);
-      const { ok, msg } = await conda.installPackage(condaExe, envPath, name, pkg, manager, procHolder);
+      const { ok, msg } = await conda.installPackage(condaExe, envPath, name, pkg, manager, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else if (type === 'uninstall') {
       const { name, package: pkg, manager } = params;
       update(30, `正在卸载 '${pkg}' (${manager}) 从 '${name}'...`);
       const envPath = await resolveEnvPath(name);
-      const { ok, msg } = await conda.uninstallPackage(condaExe, envPath, name, pkg, manager, procHolder);
+      const { ok, msg } = await conda.uninstallPackage(condaExe, envPath, name, pkg, manager, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else if (type === 'upgrade') {
       const { name, package: pkg, manager } = params;
       update(15, `正在升级 '${pkg}' (${manager}) 在 '${name}'...`);
       const envPath = await resolveEnvPath(name);
-      const { ok, msg } = await conda.upgradePackage(condaExe, envPath, name, pkg, manager, procHolder);
+      const { ok, msg } = await conda.upgradePackage(condaExe, envPath, name, pkg, manager, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else if (type === 'import') {
       const { file, name } = params;
       update(15, `正在从 yml 导入环境 '${name}'...`);
-      const { ok, msg } = await conda.importEnv(condaExe, file, name, procHolder);
+      const { ok, msg } = await conda.importEnv(condaExe, file, name, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else if (type === 'import-req') {
       const { file, name, python_version } = params;
       const pyVer = python_version || '3.12';
       update(10, `正在创建环境 '${name}' (Python ${pyVer})...`);
-      const { ok, msg } = await conda.importFromRequirements(condaExe, file, name, pyVer, procHolder);
+      const { ok, msg } = await conda.importFromRequirements(condaExe, file, name, pyVer, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else if (type === 'install-req-to-env') {
       const { file, name } = params;
       update(15, `正在在环境 '${name}' 中安装 requirements.txt...`);
       const envPath = await resolveEnvPath(name);
-      const { ok, msg } = await conda.installRequirementsToEnv(condaExe, envPath, name, file, procHolder);
+      const { ok, msg } = await conda.installRequirementsToEnv(condaExe, envPath, name, file, procHolder, onCmdStdout);
       update(ok ? 100 : 0, msg, ok ? 'completed' : 'failed');
 
     } else {

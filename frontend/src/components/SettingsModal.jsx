@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Space, Select, Switch, InputNumber, message, Alert, Typography, Divider, Row, Col, Tooltip } from 'antd';
+import { Modal, Input, Button, Space, Select, Switch, InputNumber, Radio, message, Alert, Typography, Divider, Row, Col, Tooltip } from 'antd';
 import {
   SettingOutlined, SearchOutlined, CheckCircleOutlined,
   CloseCircleOutlined, FolderOpenOutlined, FileTextOutlined,
@@ -24,6 +24,7 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
   const [calcTimeoutSec, setCalcTimeoutSec] = useState(30);
   const [autoStart, setAutoStart] = useState(false);
   const [silentStart, setSilentStart] = useState(false);
+  const [basicOpMode, setBasicOpMode] = useState('terminal');
 
   useEffect(() => {
     if (open) {
@@ -35,6 +36,7 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
           setCalcTimeoutSec(res.data.calc_timeout_sec ?? 30);
           setAutoStart(!!res.data.auto_start);
           setSilentStart(!!res.data.silent_start);
+          setBasicOpMode(res.data.basic_op_mode || 'terminal');
           setTestResult({ conda: null, mamba: null });
         })
         .catch(() => {});
@@ -114,6 +116,7 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
         calc_timeout_sec: calcTimeoutSec,
         auto_start: autoStart,
         silent_start: silentStart,
+        basic_op_mode: basicOpMode,
       });
       // 立即更新系统级开机自启设置
       await api.setAutoStart(autoStart);
@@ -299,6 +302,24 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
             </Col>
           </Row>
         )}
+
+        {/* ── 基础操作方式 ── */}
+        <div style={{ marginTop: 16, borderTop: '1px solid #e8e8e8', paddingTop: 12 }}>
+          <Text>{t('settings.basicOpMode')}</Text>
+          <div style={{ marginBottom: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.basicOpModeDesc')}</Text>
+          </div>
+          <Radio.Group
+            value={basicOpMode}
+            onChange={(e) => setBasicOpMode(e.target.value)}
+            optionType="button"
+            buttonStyle="solid"
+            size="small"
+          >
+            <Radio.Button value="queue">{t('settings.basicOpModeQueue')}</Radio.Button>
+            <Radio.Button value="terminal">{t('settings.basicOpModeTerminal')}</Radio.Button>
+          </Radio.Group>
+        </div>
       </div>
 
       <Divider style={{ margin: '0 0 20px' }} />

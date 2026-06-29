@@ -31,7 +31,19 @@ function loadSettings() {
   if (_settingsCache) return _settingsCache;
   try {
     if (fs.existsSync(settingsFile)) {
-      _settingsCache = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+      const raw = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+      // 兼容旧版本配置：缺失字段自动补默认值
+      _settingsCache = {
+        conda_path: raw.conda_path ?? '',
+        mamba_path: raw.mamba_path ?? '',
+        onboarding_completed: raw.onboarding_completed ?? false,
+        project_dir: raw.project_dir ?? '',
+        calc_env_size: raw.calc_env_size ?? false,
+        calc_timeout_sec: normalizeCalcTimeoutSec(raw.calc_timeout_sec),
+        auto_start: raw.auto_start ?? false,
+        silent_start: raw.silent_start ?? false,
+        basic_op_mode: raw.basic_op_mode ?? 'terminal',
+      };
       return _settingsCache;
     }
   } catch { /* ignore */ }
@@ -44,6 +56,7 @@ function loadSettings() {
     calc_timeout_sec: 30,
     auto_start: false,
     silent_start: false,
+    basic_op_mode: 'terminal',
   };
   return _settingsCache;
 }
@@ -69,6 +82,7 @@ function saveSettings(data) {
     calc_timeout_sec: normalizeCalcTimeoutSec(data.calc_timeout_sec ?? current.calc_timeout_sec),
     auto_start: data.auto_start ?? current.auto_start ?? false,
     silent_start: data.silent_start ?? current.silent_start ?? false,
+    basic_op_mode: data.basic_op_mode ?? current.basic_op_mode ?? 'terminal',
   }, null, 2), 'utf-8');
 }
 

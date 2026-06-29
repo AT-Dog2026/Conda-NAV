@@ -45,7 +45,7 @@ export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate
 
   const completed = taskIds.filter((id) => {
     const tk = tasks[id];
-    return tk && (tk.status === 'completed' || tk.status === 'failed');
+    return tk && (tk.status === 'completed' || tk.status === 'failed' || tk.status === 'cancelled');
   });
 
   return (
@@ -75,7 +75,7 @@ export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate
           return <TaskItem key={id} task={tk} onCancel={() => onCancel(id)} />;
         })
       )}
-      {/* 固定在底部的清除按钮，作为 extra 的兜底 */}
+      {/* 固定在底部的清除按钮 */}
       {completed.length > 0 && (
         <div className="task-clear-footer">
           <Button block icon={<ClearOutlined />} onClick={onClear}>
@@ -89,7 +89,7 @@ export default function TaskDrawer({ open, taskIds, tasks, onClose, onTaskUpdate
 
 function TaskItem({ task, onCancel }) {
   const { t } = useI18n();
-  const { task_type, status, progress, message: msg, task_id, extra } = task;
+  const { task_type, status, progress, message: msg, task_id, extra, envName } = task;
   const canForceDelete = extra?.canForceDelete === true;
 
   const cfg = {
@@ -114,7 +114,10 @@ function TaskItem({ task, onCancel }) {
       <Space direction="vertical" style={{ width: '100%' }} size={8}>
         <Space>
           <Tag icon={c.icon} color={c.color}>{c.text}</Tag>
-          <Text strong>{t(TASK_TYPE_KEYS[task_type] || task_type)}</Text>
+          <Text strong>
+            {t(TASK_TYPE_KEYS[task_type] || task_type)}
+            {envName && <Text type="secondary" style={{ fontWeight: 'normal', marginLeft: 4 }}>- {envName}</Text>}
+          </Text>
         </Space>
         <Progress
           percent={progress}
@@ -142,6 +145,17 @@ function TaskItem({ task, onCancel }) {
             </Button>
           )}
         </Space>
+        {/* 终端输出 */}
+        {task._stdout && (
+          <div style={{
+            maxHeight: 160, overflowY: 'auto', marginTop: 4, padding: '6px 8px',
+            background: 'rgba(0,0,0,0.04)', borderRadius: 4, fontSize: 11,
+            fontFamily: '"Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.4,
+          }}>
+            {task._stdout.trim()}
+          </div>
+        )}
       </Space>
       <Divider style={{ margin: '8px 0 0' }} />
     </div>

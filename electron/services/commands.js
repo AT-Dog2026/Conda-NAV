@@ -6,15 +6,19 @@ const commandsFile = path.join(settingsDir, 'commands.json');
 const defaultCommandsFile = path.join(__dirname, '../../default-commands.json');
 
 function ensureCommandsFile() {
-  if (!fs.existsSync(commandsFile)) {
+  if (fs.existsSync(commandsFile)) return;
+  try {
     const defaultContent = fs.readFileSync(defaultCommandsFile, 'utf-8');
     fs.writeFileSync(commandsFile, defaultContent);
+  } catch (err) {
+    console.error('[commands] Copy default failed:', err.message, '- creating empty');
+    try { fs.writeFileSync(commandsFile, JSON.stringify({ categories: [] }, null, 2)); } catch {}
   }
 }
 
 function loadCommands() {
-  ensureCommandsFile();
   try {
+    ensureCommandsFile();
     const content = fs.readFileSync(commandsFile, 'utf-8');
     return JSON.parse(content);
   } catch {
@@ -23,7 +27,12 @@ function loadCommands() {
 }
 
 function saveCommands(data) {
-  fs.writeFileSync(commandsFile, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(commandsFile, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('[commands] Write failed:', err.message);
+    throw err;
+  }
 }
 
 function generateId() {

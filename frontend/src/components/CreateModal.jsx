@@ -59,7 +59,7 @@ export default function CreateModal({ open, mode, cloneSource, importFilePath, i
   };
 
   const showPythonSelect = (!isClone && !isImport) || (isImportReq && targetMode === 'new');
-  const showNameInput = !isClone && !isImport || (isImport && importType !== 'req') || (isImportReq && targetMode === 'new');
+  const showNameInput = !isImport || (isImport && importType !== 'req') || (isImportReq && targetMode === 'new');
 
   const handleTargetModeChange = (e) => {
     setTargetMode(e.target.value);

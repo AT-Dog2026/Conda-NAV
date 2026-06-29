@@ -123,7 +123,7 @@ async function readEnvMetadataFromDiskAsync(envPath) {
 }
 
 // ── 执行 conda 命令 ──────────────────────────────────
-function run(cmd, timeout = 120000, procHolder = null) {
+function run(cmd, timeout = 120000, procHolder = null, onStdout = null) {
   return new Promise((resolve) => {
     const [exe, ...args] = cmd;
     const proc = spawn(exe, args, {
@@ -138,8 +138,15 @@ function run(cmd, timeout = 120000, procHolder = null) {
     let stdout = '';
     let stderr = '';
 
-    proc.stdout.on('data', (d) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.stdout.on('data', (d) => {
+      const chunk = d.toString();
+      stdout += chunk;
+      if (onStdout) onStdout(chunk);
+    });
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString();
+      if (onStdout) onStdout(d.toString());
+    });
 
     const timer = setTimeout(() => {
       proc.kill();
@@ -383,33 +390,44 @@ async function getEnvPackageCount(condaExe, envPath) {
 }
 
 // ── 创建环境 ─────────────────────────────────────────
-async function createEnvironment(condaExe, name, pythonVersion = '3.12', procHolder = null) {
+async function createEnvironment(condaExe, name, pythonVersion = '3.12', procHolder = null, onStdout = null) {
   const { rc, stdout, stderr } = await run(
     [condaExe, 'create', '-n', name, `python=${pythonVersion}`, '-y', '--json'],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `环境 '${name}' 创建成功` };
   return { ok: false, msg: stderr || stdout || '创建失败，未知错误' };
 }
 
 // ── 克隆环境 ─────────────────────────────────────────
-async function cloneEnvironment(condaExe, source, target, procHolder = null) {
+async function cloneEnvironment(condaExe, source, target, procHolder = null, onStdout = null) {
   const { rc, stdout, stderr } = await run(
     [condaExe, 'create', '-n', target, '--clone', source, '-y', '--json'],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
-  if (rc === 0) return { ok: true, msg: `环境 '${source}' 克隆为 '${target}' 成功` };
+  if (rc === 0) {
+    // 解析 conda JSON 输出获取实际路径
+    let prefix = '';
+    try {
+      const json = JSON.parse(stdout);
+      if (json.prefix) prefix = json.prefix;
+    } catch {}
+    return { ok: true, msg: `环境 '${source}' 克隆为 '${target}' 成功`, prefix };
+  }
   return { ok: false, msg: stderr || stdout || '克隆失败，未知错误' };
 }
 
 // ── 删除环境 ─────────────────────────────────────────
-async function removeEnvironment(condaExe, name, procHolder = null) {
+async function removeEnvironment(condaExe, name, procHolder = null, onStdout = null) {
   const { rc, stdout, stderr } = await run(
     [condaExe, 'env', 'remove', '-n', name, '-y', '--json'],
     300000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `环境 '${name}' 已删除` };
   return { ok: false, msg: stderr || stdout || '删除失败，未知错误' };
@@ -610,7 +628,7 @@ async function listPackages(condaExe, envPath) {
 }
 
 // ── 安装包 ─────────────────────────────────────────────
-async function installPackage(condaExe, envPath, envName, pkgSpec, manager = 'conda', procHolder = null) {
+async function installPackage(condaExe, envPath, envName, pkgSpec, manager = 'conda', procHolder = null, onStdout = null) {
   assertSafeEnvName(envName);
   assertSafePkgName(pkgSpec);
   if (manager === 'pip') {
@@ -619,7 +637,8 @@ async function installPackage(condaExe, envPath, envName, pkgSpec, manager = 'co
     const { rc, stdout, stderr } = await run(
       [pyExe, '-m', 'pip', 'install', pkgSpec],
       600000,
-      procHolder
+      procHolder,
+      onStdout
     );
     if (rc === 0) return { ok: true, msg: `pip: '${pkgSpec}' 安装成功` };
     return { ok: false, msg: stderr || stdout || 'pip 安装失败' };
@@ -628,14 +647,15 @@ async function installPackage(condaExe, envPath, envName, pkgSpec, manager = 'co
   const { rc, stdout, stderr } = await run(
     [condaExe, 'install', '-n', envName, pkgSpec, '-y', '--json'],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `conda: '${pkgSpec}' 安装成功` };
   return { ok: false, msg: stderr || stdout || 'conda 安装失败' };
 }
 
 // ── 卸载包 ─────────────────────────────────────────────
-async function uninstallPackage(condaExe, envPath, envName, pkgName, manager = 'conda', procHolder = null) {
+async function uninstallPackage(condaExe, envPath, envName, pkgName, manager = 'conda', procHolder = null, onStdout = null) {
   assertSafeEnvName(envName);
   assertSafePkgName(pkgName);
   if (manager === 'pip') {
@@ -644,7 +664,8 @@ async function uninstallPackage(condaExe, envPath, envName, pkgName, manager = '
     const { rc, stdout, stderr } = await run(
       [pyExe, '-m', 'pip', 'uninstall', '-y', pkgName],
       300000,
-      procHolder
+      procHolder,
+      onStdout
     );
     if (rc === 0) return { ok: true, msg: `pip: '${pkgName}' 已卸载` };
     return { ok: false, msg: stderr || stdout || 'pip 卸载失败' };
@@ -652,14 +673,15 @@ async function uninstallPackage(condaExe, envPath, envName, pkgName, manager = '
   const { rc, stdout, stderr } = await run(
     [condaExe, 'remove', '-n', envName, pkgName, '-y', '--json'],
     300000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `conda: '${pkgName}' 已卸载` };
   return { ok: false, msg: stderr || stdout || 'conda 卸载失败' };
 }
 
 // ── 升级包 ─────────────────────────────────────────────
-async function upgradePackage(condaExe, envPath, envName, pkgName, manager = 'conda', procHolder = null) {
+async function upgradePackage(condaExe, envPath, envName, pkgName, manager = 'conda', procHolder = null, onStdout = null) {
   assertSafeEnvName(envName);
   assertSafePkgName(pkgName);
   if (manager === 'pip') {
@@ -668,7 +690,8 @@ async function upgradePackage(condaExe, envPath, envName, pkgName, manager = 'co
     const { rc, stdout, stderr } = await run(
       [pyExe, '-m', 'pip', 'install', '--upgrade', pkgName],
       600000,
-      procHolder
+      procHolder,
+      onStdout
     );
     if (rc === 0) return { ok: true, msg: `pip: '${pkgName}' 已升级` };
     return { ok: false, msg: stderr || stdout || 'pip 升级失败' };
@@ -676,7 +699,8 @@ async function upgradePackage(condaExe, envPath, envName, pkgName, manager = 'co
   const { rc, stdout, stderr } = await run(
     [condaExe, 'update', '-n', envName, pkgName, '-y', '--json'],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `conda: '${pkgName}' 已升级` };
   return { ok: false, msg: stderr || stdout || 'conda 升级失败' };
@@ -694,26 +718,27 @@ async function exportEnv(condaExe, name) {
 }
 
 // ── 从 yml 导入环境 ────────────────────────────────────
-async function importEnv(condaExe, filePath, name, procHolder = null) {
+async function importEnv(condaExe, filePath, name, procHolder = null, onStdout = null) {
   assertSafeEnvName(name);
   if (!fs.existsSync(filePath)) throw new Error(`文件不存在: ${filePath}`);
   const { rc, stdout, stderr } = await run(
     [condaExe, 'env', 'create', '-f', filePath, '-n', name],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
   if (rc === 0) return { ok: true, msg: `环境 '${name}' 导入成功` };
   return { ok: false, msg: stderr || stdout || '导入失败' };
 }
 
 // ── 从 requirements.txt 导入环境 ───────────────────────
-async function importFromRequirements(condaExe, filePath, name, pythonVersion = '3.12', procHolder = null) {
+async function importFromRequirements(condaExe, filePath, name, pythonVersion = '3.12', procHolder = null, onStdout = null) {
   assertSafeEnvName(name);
   assertSafePath(filePath, 'requirements.txt');
   if (!fs.existsSync(filePath)) throw new Error(`文件不存在: ${filePath}`);
 
   // Step 1: 创建空环境
-  const createResult = await createEnvironment(condaExe, name, pythonVersion, procHolder);
+  const createResult = await createEnvironment(condaExe, name, pythonVersion, procHolder, onStdout);
   if (!createResult.ok) return createResult;
 
   // Step 2: 获取环境路径
@@ -726,7 +751,8 @@ async function importFromRequirements(condaExe, filePath, name, pythonVersion = 
   const { rc, stdout, stderr } = await run(
     [pipExe, '-m', 'pip', 'install', '-r', filePath],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
 
   if (rc === 0) return { ok: true, msg: `环境 '${name}' 从 requirements.txt 导入成功` };
@@ -742,7 +768,7 @@ async function importFromRequirements(condaExe, filePath, name, pythonVersion = 
  * @param {object} procHolder 进程持有者
  * @returns {object} { ok, msg }
  */
-async function installRequirementsToEnv(condaExe, envPath, envName, filePath, procHolder = null) {
+async function installRequirementsToEnv(condaExe, envPath, envName, filePath, procHolder = null, onStdout = null) {
   assertSafeEnvName(envName);
   assertSafePath(filePath, 'requirements.txt');
   if (!fs.existsSync(filePath)) throw new Error(`文件不存在: ${filePath}`);
@@ -754,7 +780,8 @@ async function installRequirementsToEnv(condaExe, envPath, envName, filePath, pr
   const { rc, stdout, stderr } = await run(
     [pipExe, '-m', 'pip', 'install', '-r', filePath],
     600000,
-    procHolder
+    procHolder,
+    onStdout
   );
 
   if (rc === 0) return { ok: true, msg: `已在环境 '${envName}' 中安装 requirements.txt 中的包` };
