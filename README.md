@@ -3,7 +3,7 @@
 轻量级 Conda 环境管理桌面应用 —— Anaconda Navigator 的轻量替代。
 
 ## Download下载
-https://github.com/AT-Dog2026/Conda-NAV/releases
+https://github.com/AT-Dog2026/Conda-NAV/releases/latest
 ## 功能
 
 | 模块 | 功能 |
