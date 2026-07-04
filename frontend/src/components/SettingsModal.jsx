@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Space, Select, Switch, InputNumber, Radio, message, Alert, Typography, Divider, Row, Col, Tooltip } from 'antd';
+import { Modal, Input, Button, Space, Select, Switch, InputNumber, Radio, message, Alert, Typography, Divider, Row, Col, Tooltip, theme, App } from 'antd';
 import {
   SettingOutlined, SearchOutlined, CheckCircleOutlined,
   CloseCircleOutlined, FolderOpenOutlined, FileTextOutlined,
@@ -10,9 +10,12 @@ import { useI18n } from '../i18n/context';
 import api from '../api';
 
 const { Text } = Typography;
+const { useToken } = theme;
 
 export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }) {
   const { t, locale, setLocale } = useI18n();
+  const { token } = useToken();
+  const { modal } = App.useApp();
   const [condaPath, setCondaPath] = useState('');
   const [mambaPath, setMambaPath] = useState('');
   const [testing, setTesting] = useState({ conda: false, mamba: false });
@@ -182,7 +185,7 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
                 <div style={{ fontSize: 12 }}>{t('settings.infoDesc')}</div>
               </div>
             }>
-              <QuestionCircleOutlined style={{ color: '#999', cursor: 'help', fontSize: 14 }} />
+              <QuestionCircleOutlined style={{ color: token.colorTextQuaternary, cursor: 'help', fontSize: 14 }} />
             </Tooltip>
           </Space>
         </div>
@@ -304,14 +307,28 @@ export default function SettingsModal({ open, onClose, onSaved, onOpenTerminal }
         )}
 
         {/* ── 基础操作方式 ── */}
-        <div style={{ marginTop: 16, borderTop: '1px solid #e8e8e8', paddingTop: 12 }}>
+        <div style={{ marginTop: 16, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 12 }}>
           <Text>{t('settings.basicOpMode')}</Text>
           <div style={{ marginBottom: 8 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.basicOpModeDesc')}</Text>
           </div>
           <Radio.Group
             value={basicOpMode}
-            onChange={(e) => setBasicOpMode(e.target.value)}
+            onChange={(e) => {
+              const newMode = e.target.value;
+              if (newMode === 'queue' && basicOpMode !== 'queue') {
+                modal.confirm({
+                  title: t('settings.basicOpModeConfirmTitle'),
+                  content: <div style={{ whiteSpace: 'pre-line', fontSize: 13, lineHeight: 1.7 }}>{t('settings.basicOpModeConfirmContent')}</div>,
+                  okText: t('settings.basicOpModeQueue'),
+                  cancelText: t('delete.cancel'),
+                  width: 480,
+                  onOk: () => setBasicOpMode('queue'),
+                });
+              } else {
+                setBasicOpMode(newMode);
+              }
+            }}
             optionType="button"
             buttonStyle="solid"
             size="small"

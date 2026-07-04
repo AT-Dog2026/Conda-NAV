@@ -16,9 +16,9 @@ const { Text } = Typography;
 
 /**
  * 包管理面板：列出环境内全部包（conda + pip），支持安装/卸载/升级。
- * 写操作走任务队列，完成后自动刷新包列表。
+ * 写操作走任务队列（queue 模式）或打开 CMD 终端（terminal 模式）。
  */
-export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
+export default function PackageModal({ env, open, onClose, onTaskSubmitted, basicOpMode, condaExe }) {
   const { t } = useI18n();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -58,8 +58,44 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
       )
     : packages;
 
+  // 终端模式：构造命令并打开 CMD 终端
+  const runPkgInTerminal = (command, logLabel) => {
+    if (!window.electron?.invoke) {
+      message.error('当前环境不支持打开终端');
+      addLog('error', 'terminal:unavailable', command);
+      return;
+    }
+    try {
+      window.electron.invoke('terminal:run-command', { command, workDir: '.' });
+      addLog('cmd', logLabel, command);
+      message.success(t('env.terminalOpened'));
+    } catch (e) {
+      message.error(t('env.openTerminalFail') + ': ' + e.message);
+      addLog('error', logLabel, e.message);
+    }
+  };
+
   // 提交包操作任务
   const submitPkgTask = async (kind, pkgName, manager) => {
+    // Terminal 模式：直接打开 CMD 终端执行
+    if (basicOpMode === 'terminal') {
+      let command;
+      const c = condaExe || 'conda';
+      if (manager === 'pip') {
+        if (kind === 'install') command = `"${c}" run -n ${env.name} pip install ${pkgName}`;
+        else if (kind === 'uninstall') command = `"${c}" run -n ${env.name} pip uninstall ${pkgName} -y`;
+        else if (kind === 'upgrade') command = `"${c}" run -n ${env.name} pip install --upgrade ${pkgName}`;
+      } else {
+        if (kind === 'install') command = `"${c}" install -n ${env.name} ${pkgName} -y`;
+        else if (kind === 'uninstall') command = `"${c}" remove -n ${env.name} ${pkgName} -y`;
+        else if (kind === 'upgrade') command = `"${c}" update -n ${env.name} ${pkgName} -y`;
+      }
+      runPkgInTerminal(command, `pkg:${kind}:terminal`);
+      if (kind === 'install') setInstallName('');
+      return;
+    }
+
+    // Queue 模式：走任务队列 API
     const payload = { name: env.name, package: pkgName, manager };
     try {
       let res;
@@ -93,6 +129,15 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted }) {
     });
     if (!filePath) return;
 
+    // Terminal 模式
+    if (basicOpMode === 'terminal') {
+      const c = condaExe || 'conda';
+      const command = `"${c}" run -n ${env.name} pip install -r "${filePath}"`;
+      runPkgInTerminal(command, 'pkg:install-req:terminal');
+      return;
+    }
+
+    // Queue 模式
     try {
       const res = await api.installRequirementsToEnv({ name: env.name, file: filePath });
       message.success(t('pkg.submitted'));

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
 import {
   Layout, Typography, ConfigProvider, theme, Space, Tag, message,
-  Modal, Input, Alert, Button, Tooltip, Dropdown, Popconfirm,
+  Modal, Input, Alert, Button, Tooltip, Dropdown, Popconfirm, App as AntdApp,
 } from 'antd';
 import {
   SettingOutlined, ExclamationCircleOutlined, ToolOutlined,
@@ -298,19 +298,42 @@ export default function App() {
           message.error(importType === 'yml' ? t('env.selectYmlFile') : t('env.selectTxtFile'));
           return;
         }
-        // 导入操作：打开终端手动执行，不走任务队列
-        let command;
-        if (importType === 'yml') {
-          command = `conda env create -f "${importFilePath}" -n ${values.name}`;
-        } else if (values.is_existing) {
-          command = `conda activate ${values.name} && pip install -r "${importFilePath}"`;
-        } else {
-          const pyVer = values.python_version || '3.12';
-          command = `conda create -n ${values.name} python=${pyVer} -y && conda activate ${values.name} && pip install -r "${importFilePath}"`;
+        if (basicOpMode === 'terminal') {
+          // Terminal 模式：打开终端手动执行
+          let command;
+          const c = condaExe || 'conda';
+          if (importType === 'yml') {
+            command = `"${c}" env create -f "${importFilePath}" -n ${values.name}`;
+          } else if (values.is_existing) {
+            command = `"${c}" run -n ${values.name} pip install -r "${importFilePath}"`;
+          } else {
+            const pyVer = values.python_version || '3.12';
+            command = `"${c}" create -n ${values.name} python=${pyVer} -y && "${c}" run -n ${values.name} pip install -r "${importFilePath}"`;
+          }
+          runInTerminal(command, 'import:terminal');
+          setImportFilePath(null);
+          return;
         }
-        runInTerminal(command, 'import:terminal');
+        // Queue 模式：走任务队列 API
+        let res;
+        if (importType === 'yml') {
+          res = await api.importEnvironment({ file: importFilePath, name: values.name });
+          taskId = res.data.task_id;
+          initTask(taskId, 'import');
+        } else if (values.is_existing) {
+          res = await api.installRequirementsToEnv({ name: values.name, file: importFilePath });
+          taskId = res.data.task_id;
+          initTask(taskId, 'install-req-to-env');
+        } else {
+          res = await api.importFromRequirements({
+            file: importFilePath,
+            name: values.name,
+            python_version: values.python_version || '3.12',
+          });
+          taskId = res.data.task_id;
+          initTask(taskId, 'import-req');
+        }
         setImportFilePath(null);
-        return; // 跳过后续任务流程
       } else {
         // clone mode
         if (basicOpMode === 'terminal') {
@@ -361,6 +384,15 @@ export default function App() {
   };
 
   const handleCleanInvalid = async (envPath) => {
+    if (basicOpMode === 'terminal') {
+      const isWin = (typeof process !== 'undefined' && process.platform === 'win32') || navigator.userAgent.includes('Windows');
+      const command = isWin
+        ? `rmdir /s /q "${envPath}"`
+        : `rm -rf "${envPath}"`;
+      runInTerminal(command, 'clean-invalid:terminal');
+      addLog('cmd', 'env:clean-invalid', `终端删除目录: ${envPath}`);
+      return;
+    }
     try {
       const res = await api.cleanInvalidEnvironment(envPath);
       initTask(res.data.task_id, 'clean-invalid');
@@ -523,6 +555,7 @@ export default function App() {
         token: { colorPrimary: '#4CAF50', borderRadius: 6 },
       }}
     >
+      <AntdApp>
       <Layout style={{ minHeight: '100vh' }}>
         {/* ═══ 固定顶部 ═══════════════════════════════════ */}
         <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
@@ -556,10 +589,16 @@ export default function App() {
             <Button type="text" icon={<CodeOutlined />} onClick={() => setQuickCmdOpen(true)}>
               {t('app.quickCommands')}
             </Button>
-            <Button type="text" icon={activeTaskIds.length > 0 ? <LoadingOutlined spin /> : <ToolOutlined />} onClick={() => setDrawerOpen(true)}>
-              {t('app.tasks')}
-              {activeTaskIds.length > 0 && <span style={{ marginLeft: 4 }}>({activeTaskIds.length})</span>}
-            </Button>
+            {basicOpMode === 'terminal' ? (
+              <Tag icon={<ConsoleSqlOutlined />} color="default" style={{ cursor: 'default', userSelect: 'none' }} title={t('app.cmdModeHint')}>
+                {t('app.cmdMode')}
+              </Tag>
+            ) : (
+              <Button type="text" icon={activeTaskIds.length > 0 ? <LoadingOutlined spin /> : <ToolOutlined />} onClick={() => setDrawerOpen(true)}>
+                {t('app.tasks')}
+                {activeTaskIds.length > 0 && <span style={{ marginLeft: 4 }}>({activeTaskIds.length})</span>}
+              </Button>
+            )}
             <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
               {t('app.settings')}
             </Button>
@@ -753,6 +792,8 @@ export default function App() {
             open={!!pkgModalEnv}
             onClose={() => setPkgModalEnv(null)}
             onTaskSubmitted={handlePkgTaskSubmitted}
+            basicOpMode={basicOpMode}
+            condaExe={condaExe}
           />
         </Suspense>
       )}
@@ -831,6 +872,7 @@ export default function App() {
           />
         </Suspense>
       )}
+      </AntdApp>
     </ConfigProvider>
   );
 }
