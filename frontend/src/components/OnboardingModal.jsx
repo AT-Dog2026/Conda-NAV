@@ -137,7 +137,7 @@ export default function OnboardingModal({ open, onComplete, onSkip }) {
     <Modal
       title={
         <Space>
-          <RocketOutlined style={{ color: '#4CAF50' }} />
+          <RocketOutlined style={{ color: 'var(--color-primary)' }} />
           {t('onboarding.title')}
         </Space>
       }

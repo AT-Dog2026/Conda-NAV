@@ -140,6 +140,10 @@ const api = {
     call('env:export', `/api/environments/${encodeURIComponent(name)}/export`, { ipcArg: name })
       .then((res) => ({ data: res })),
 
+  exportRequirements: (name) =>
+    call('env:export-req', `/api/environments/${encodeURIComponent(name)}/export-req`, { ipcArg: name })
+      .then((res) => ({ data: res })),
+
   importEnvironment: (data) =>
     call('env:import', '/api/environments/import', { method: 'POST', body: data })
       .then((taskId) => ({ data: { task_id: taskId, message: '导入任务已提交' } })),
@@ -266,6 +270,26 @@ const api = {
       body: { envName, projectDir },
       ipcArg: { envName, projectDir },
     }).then((res) => ({ data: res })),
+
+  // ── 项目管理 CRUD ──────────────────────────────────
+  getProjects: () =>
+    call('project:list', '/api/projects').then((data) => ({ data })),
+
+  addProject: (data) =>
+    call('project:add', '/api/projects', { method: 'POST', body: data })
+      .then((res) => ({ data: res })),
+
+  updateProject: (id, data) =>
+    call('project:update', `/api/projects/${encodeURIComponent(id)}`, { method: 'PUT', body: { id, ...data } })
+      .then((res) => ({ data: res })),
+
+  deleteProject: (id) =>
+    call('project:delete', `/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE', body: { id } })
+      .then((res) => ({ data: res })),
+
+  deleteProjectDir: (id) =>
+    call('project:delete-dir', `/api/projects/${encodeURIComponent(id)}/dir`, { method: 'DELETE', body: { id } })
+      .then((res) => ({ data: res })),
 
   // ── 环境名列表（供托盘） ──────────────────────────
   getEnvNames: () =>

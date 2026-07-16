@@ -165,6 +165,41 @@ async function openProjectTerminal(envName, projectDir) {
   return result;
 }
 
+// ── 项目管理 ──────────────────────────────────────────
+function getProjects() {
+  return { projects: settings.getProjects() };
+}
+
+function addProject(data) {
+  const project = settings.addProject(data);
+  return { success: true, project };
+}
+
+function updateProject(id, data) {
+  const project = settings.updateProject(id, data);
+  return { success: true, project };
+}
+
+function deleteProject(id) {
+  settings.deleteProject(id);
+  return { success: true };
+}
+
+function deleteProjectDir(id) {
+  const projects = settings.getProjects();
+  const project = projects.find(p => p.id === id);
+  if (!project) throw new Error('项目不存在');
+  const fs = require('fs');
+  const projectPath = project.path;
+  // 先移除引用
+  settings.deleteProject(id);
+  // 再删除目录
+  if (fs.existsSync(projectPath)) {
+    fs.rmSync(projectPath, { recursive: true, force: true });
+  }
+  return { success: true, deletedPath: projectPath };
+}
+
 // ── 获取环境名列表（供托盘菜单使用） ──────────────────
 async function getEnvNames() {
   const envs = await getCachedEnvironments();
@@ -208,6 +243,14 @@ async function exportEnvironment(name) {
   if (!env) throw new Error(`环境 '${name}' 不存在`);
   const condaExe = settings.getCondaCmd();
   return conda.exportEnv(condaExe, name);
+}
+
+async function exportRequirements(name) {
+  if (!name) throw new Error('环境名不能为空');
+  const env = await findEnv(name);
+  if (!env) throw new Error(`环境 '${name}' 不存在`);
+  const condaExe = settings.getCondaCmd();
+  return conda.pipFreeze(condaExe, name);
 }
 
 function importEnvironment({ file, name }) {
@@ -349,10 +392,16 @@ module.exports = {
   uninstallPackage,
   upgradePackage,
   exportEnvironment,
+  exportRequirements,
   importEnvironment,
   importFromRequirements,
   installRequirementsToEnv,
   getEnvSize,
   getCalcEnvSizeSettings,
   openTerminalWithCmd,
+  getProjects,
+  addProject,
+  updateProject,
+  deleteProject,
+  deleteProjectDir,
 };

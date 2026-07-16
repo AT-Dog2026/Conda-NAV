@@ -79,7 +79,7 @@ async function createWindow(options = {}) {
   const icon = createDefaultIcon();
   mainWindow = new BrowserWindow({
     width: 1200, height: 800,
-    minWidth: 800, minHeight: 600,
+    minWidth: 1000, minHeight: 600,
     title: 'Conda NAV', icon: icon,
     autoHideMenuBar: true,
     webPreferences: {
@@ -255,6 +255,7 @@ ipcMain.handle('env:uninstall', (_e, data) => handlers.uninstallPackage(data));
 ipcMain.handle('env:upgrade', (_e, data) => handlers.upgradePackage(data));
 // ── 导出 / 导入 ───────────────────────────────────────
 ipcMain.handle('env:export', (_e, name) => handlers.exportEnvironment(name));
+ipcMain.handle('env:export-req', (_e, name) => handlers.exportRequirements(name));
 ipcMain.handle('env:import', (_e, data) => handlers.importEnvironment(data));
 ipcMain.handle('env:install-requirements', (_e, data) => handlers.installRequirementsToEnv(data));
 
@@ -367,6 +368,12 @@ ipcMain.handle('project:set-dir', (_e, dir) => handlers.setProjectDir(dir));
 ipcMain.handle('project:terminal', (_e, { envName, projectDir }) =>
   handlers.openProjectTerminal(envName, projectDir)
 );
+// ── 项目管理 CRUD ───────────────────────────────────
+ipcMain.handle('project:list', () => handlers.getProjects());
+ipcMain.handle('project:add', (_e, data) => handlers.addProject(data));
+ipcMain.handle('project:update', (_e, { id, ...data }) => handlers.updateProject(id, data));
+ipcMain.handle('project:delete', (_e, { id }) => handlers.deleteProject(id));
+ipcMain.handle('project:delete-dir', (_e, { id }) => handlers.deleteProjectDir(id));
 // ── 终端执行自定义命令（requirements.txt pip install 等）──
 ipcMain.handle('terminal:run-command', (_e, data) => handlers.openTerminalWithCmd(data));
 
@@ -415,6 +422,32 @@ ipcMain.handle('theme:set', (_e, isDark) => {
 });
 
 // ═══════════════════════════════════════════════════════
+// ── 单实例锁 ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // 已有实例在运行，提示用户并退出
+  dialog.showMessageBoxSync({
+    type: 'info',
+    title: 'Conda NAV',
+    message: 'Conda NAV 正在运行，无法重复运行',
+    detail: 'Conda NAV 已在后台运行。您可以点击系统托盘图标或按 Ctrl+Shift+C 打开主窗口。',
+    buttons: ['确定'],
+  });
+  app.quit();
+} else {
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    // 有人尝试启动第二个实例，将现有窗口提到前台
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+// ═══════════════════════════════════════════════════════
 // ── 应用启动 ─────────────────────────────────────────
 // ═══════════════════════════════════════════════════════
 
@@ -422,6 +455,9 @@ app.whenReady().then(() => {
   console.log('isDev:', isDev, 'app.isPackaged:', app.isPackaged);
   // 初始化本地鉴权 token（持久化，跨重启稳定）
   console.log('本地 HTTP token 已就绪');
+
+  // 从持久化设置恢复激活环境
+  state.init();
 
   // 开机自启：读取设置并同步
   const settings = settingsService.loadSettings();
@@ -443,6 +479,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+} // else: gotTheLock
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && mainWindow) mainWindow.hide();

@@ -40,9 +40,9 @@ export default function CreateModal({ open, mode, cloneSource, importFilePath, i
   };
 
   const getTitleIcon = () => {
-    if (isImport) return <ImportOutlined style={{ color: '#4CAF50' }} />;
-    if (isClone) return <BranchesOutlined style={{ color: '#4CAF50' }} />;
-    return <PlusOutlined style={{ color: '#4CAF50' }} />;
+    if (isImport) return <ImportOutlined style={{ color: 'var(--color-primary)' }} />;
+    if (isClone) return <BranchesOutlined style={{ color: 'var(--color-primary)' }} />;
+    return <PlusOutlined style={{ color: 'var(--color-primary)' }} />;
   };
 
   const getTitleText = () => {

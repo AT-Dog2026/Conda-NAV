@@ -123,7 +123,7 @@ function TaskItem({ task, onCancel }) {
           percent={progress}
           status={status === 'failed' ? 'exception' : status === 'completed' ? 'success' : 'active'}
           size="small"
-          strokeColor={status === 'failed' ? '#ff4d4f' : '#4CAF50'}
+          strokeColor={status === 'failed' ? 'var(--color-error)' : 'var(--color-primary)'}
         />
         <Space>
           <Text type="secondary" style={{ fontSize: 13, wordBreak: 'break-all' }}>{msg}</Text>

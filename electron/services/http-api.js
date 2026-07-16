@@ -132,6 +132,11 @@ async function handleRoute(req, m, p, b) {
     return { code: 200, data: await handlers.exportEnvironment(exportMatch.name) };
   }
 
+  const exportReqMatch = match('/api/environments/:name/export-req', p);
+  if (m === 'GET' && exportReqMatch) {
+    return { code: 200, data: await handlers.exportRequirements(exportReqMatch.name) };
+  }
+
   const sizeMatch = match('/api/environments/:name/size', p);
   if (m === 'GET' && sizeMatch) {
     return { code: 200, data: await handlers.getEnvSize(sizeMatch.name) };

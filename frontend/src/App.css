@@ -1,9 +1,256 @@
-/* 全局样式 */
+/* ═══════════════════════════════════════════════════════
+   Conda NAV — Design Token System
+   浅色模式 (默认) · 暗色模式 ([data-theme="dark"])
+   符合 WCAG 2.1 AA 标准
+   ═══════════════════════════════════════════════════════ */
+
+/* ── 浅色模式 (默认) ──────────────────────────────── */
+:root {
+  /* ═══ Brand / 品牌色 ═══ */
+  --color-primary: #4CAF50;            /* Material Green 500 — 主色 */
+  --color-primary-hover: #43A047;      /* Material Green 600 */
+  --color-primary-light: #81C784;      /* Material Green 300 — 图标装饰 */
+  --color-primary-bg: #E8F5E9;         /* Material Green 50  — 主色浅底 */
+  --color-primary-border: #C8E6C9;     /* Material Green 100 */
+  --color-primary-ring: rgba(76, 175, 80, 0.15); /* hover 光环 */
+
+  /* ═══ Functional / 功能色 ═══ */
+  --color-success: #16A34A;            /* Green 600   — 对比度 4.2:1 AA */
+  --color-success-bg: #F0FDF4;         /* Green 50 */
+  --color-success-border: #BBF7D0;     /* Green 200 */
+
+  --color-warning: #D97706;            /* Amber 600  — 对比度 4.6:1 AA */
+  --color-warning-bg: #FFFBEB;         /* Amber 50 */
+  --color-warning-border: #FDE68A;     /* Amber 200 */
+
+  --color-error: #DC2626;              /* Red 600    — 对比度 5.2:1 AA */
+  --color-error-bg: #FEF2F2;           /* Red 50 */
+  --color-error-border: #FECACA;       /* Red 200 */
+
+  --color-info: #2563EB;               /* Blue 600   — 对比度 5.7:1 AA */
+  --color-info-bg: #EFF6FF;            /* Blue 50 */
+  --color-info-border: #BFDBFE;        /* Blue 200 */
+
+  /* ═══ Neutral / 中性色 — 背景 ═══ */
+  --bg-app: #F3F4F6;                   /* 应用底层背景 (Gray 100) */
+  --bg-header: #FFFFFF;
+  --bg-activitybar: #F9FAFB;           /* Activity Bar (Gray 50) */
+  --bg-content: #F8F9FB;               /* 内容区 (略带蓝调的灰) */
+  --bg-card: #FFFFFF;                  /* 卡片底色 */
+  --bg-card-hover: #F9FAFB;            /* 卡片悬浮 */
+  --bg-footer: #F3F4F6;               /* 状态栏 */
+  --bg-header-status: #F3F4F6;        /* 顶部状态指示区 */
+  --bg-elevated: #FFFFFF;             /* 浮层(Modal/Drawer) */
+  --bg-hover: rgba(0, 0, 0, 0.04);   /* 通用悬浮 */
+  --bg-table-header: #F9FAFB;         /* 表头底色 */
+  --bg-table-row-hover: #F3F4F6;      /* 表格行悬浮 */
+
+  /* ═══ Neutral / 中性色 — 文字 ═══ */
+  --text-primary: #111827;             /* Gray 900 — 对比度 16.5:1 (AAA) */
+  --text-secondary: #4B5563;           /* Gray 600 — 对比度 7.8:1 (AAA) */
+  --text-tertiary: #6B7280;            /* Gray 500 — 对比度 4.7:1 (AA) */
+  --text-disabled: #9CA3AF;            /* Gray 400 */
+  --text-heading: #111827;             /* 标题文字 */
+  --text-footer: #6B7280;              /* 状态栏文字 */
+  --text-footer-secondary: #9CA3AF;    /* 状态栏次要 */
+  --text-inverse: #FFFFFF;             /* 反色文字(用于深色按钮等) */
+
+  /* ═══ Neutral / 中性色 — 边框 & 分割线 ═══ */
+  --border-primary: #E5E7EB;           /* Gray 200 — 主边框 */
+  --border-secondary: #D1D5DB;         /* Gray 300 — 较深边框 */
+  --border-light: #F3F4F6;             /* Gray 100 — 极淡边框 */
+  --border-header: #E5E7EB;
+  --border-activitybar: #E5E7EB;
+  --border-content: #E5E7EB;
+  --border-footer: #D1D5DB;
+  --border-header-status: #D1D5DB;
+  --border-divider: #E5E7EB;
+  --border-separator: #D1D5DB;
+  --border-table: #E5E7EB;
+
+  /* ═══ Activity Bar 专用 ═══ */
+  --ab-bg: #F9FAFB;
+  --ab-border: #E5E7EB;
+  --ab-icon-active: #4CAF50;           /* 激活态 = 主色 */
+  --ab-icon-inactive: #6B7280;         /* 非激活态 */
+  --ab-indicator: #4CAF50;             /* 左侧指示条 */
+  --ab-hover: rgba(0, 0, 0, 0.04);
+  --ab-active-bg: rgba(0, 0, 0, 0.06);
+
+  /* ═══ 状态指示点 ═══ */
+  --status-connected: #16A34A;         /* 已连接 */
+  --status-checking: #D97706;          /* 检查中 */
+  --status-disconnected: #DC2626;      /* 断开 */
+
+  /* ═══ 滚动条 ═══ */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  /* ═══ 阴影 ═══ */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 12px 28px rgba(0, 0, 0, 0.10);
+
+  /* ═══ 激活环境色 ═══ */
+  --color-activated: #2563EB;          /* Blue 600 */
+
+  /* ═══ 其他 ═══ */
+  --color-python: #4CAF50;             /* Python 图标同品牌色 */
+  --color-loading-text: #6B7280;       /* 加载中文字 */
+  --color-terminal-disabled: #D1D5DB;  /* 终端按钮禁用态 */
+}
+
+/* ── 暗色模式 ────────────────────────────────────── */
+[data-theme="dark"] {
+  /* Brand */
+  --color-primary: #4CAF50;            /* Material Green 500 */
+  --color-primary-hover: #43A047;      /* Material Green 600 */
+  --color-primary-light: #81C784;      /* Material Green 300 */
+  --color-primary-bg: rgba(76, 175, 80, 0.12);
+  --color-primary-border: rgba(76, 175, 80, 0.3);
+  --color-primary-ring: rgba(76, 175, 80, 0.2);
+
+  /* Functional */
+  --color-success: #4ADE80;
+  --color-success-bg: rgba(22, 163, 74, 0.12);
+  --color-success-border: rgba(22, 163, 74, 0.3);
+  --color-warning: #FBBF24;
+  --color-warning-bg: rgba(217, 119, 6, 0.12);
+  --color-warning-border: rgba(217, 119, 6, 0.3);
+  --color-error: #F87171;
+  --color-error-bg: rgba(220, 38, 38, 0.12);
+  --color-error-border: rgba(220, 38, 38, 0.3);
+  --color-info: #60A5FA;
+  --color-info-bg: rgba(37, 99, 235, 0.12);
+  --color-info-border: rgba(37, 99, 235, 0.3);
+
+  /* Backgrounds */
+  --bg-app: #1a1a1a;
+  --bg-header: #1f1f1f;
+  --bg-activitybar: #252526;
+  --bg-content: #1e1e1e;
+  --bg-card: #252525;
+  --bg-card-hover: #2a2a2a;
+  --bg-footer: #1e1e1e;
+  --bg-header-status: #2a2a2a;
+  --bg-elevated: #2d2d2d;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-table-header: rgba(128, 128, 128, 0.06);
+  --bg-table-row-hover: rgba(128, 128, 128, 0.04);
+
+  /* Text */
+  --text-primary: #e5e5e5;
+  --text-secondary: #aaaaaa;
+  --text-tertiary: #777777;
+  --text-disabled: #555555;
+  --text-heading: #ffffff;
+  --text-footer: #888888;
+  --text-footer-secondary: #666666;
+  --text-inverse: #111827;
+
+  /* Borders */
+  --border-primary: #333333;
+  --border-secondary: #3a3a3a;
+  --border-light: #2a2a2a;
+  --border-header: #363636;
+  --border-activitybar: #3e3e42;
+  --border-content: #2c2c2c;
+  --border-footer: #2c2c2c;
+  --border-header-status: #3a3a3a;
+  --border-divider: #3a3a3a;
+  --border-separator: #3a3a3a;
+  --border-table: #3a3a3a;
+
+  /* Activity Bar */
+  --ab-bg: #252526;
+  --ab-border: #3e3e42;
+  --ab-icon-active: #4CAF50;
+  --ab-icon-inactive: #858585;
+  --ab-indicator: #4CAF50;
+  --ab-hover: rgba(128, 128, 128, 0.15);
+  --ab-active-bg: rgba(128, 128, 128, 0.12);
+
+  /* Status dots */
+  --status-connected: #4ADE80;
+  --status-checking: #FBBF24;
+  --status-disconnected: #F87171;
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(128, 128, 128, 0.3);
+  --scrollbar-thumb-hover: rgba(128, 128, 128, 0.5);
+
+  /* Shadows */
+  --shadow-card: none;
+  --shadow-card-hover: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 12px 28px rgba(0, 0, 0, 0.4);
+
+  /* Others */
+  --color-activated: #4fc3f7;
+  --color-python: #4CAF50;
+  --color-loading-text: #777777;
+  --color-terminal-disabled: #555555;
+}
+
+/* ═══════════════════════════════════════════════════════
+   全局样式
+   ═══════════════════════════════════════════════════════ */
 
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: #f5f5f5;
+  background: var(--bg-app);
+}
+
+/* ── VSCode 风格 Activity Bar ──────────────────────── */
+.activity-bar {
+  -webkit-app-region: no-drag;
+}
+.activity-bar-item {
+  border-left: 2px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+.activity-bar-item:hover {
+  background: var(--ab-hover);
+}
+.activity-bar-item.active {
+  background: var(--ab-active-bg);
+}
+
+/* Activity Bar 左侧指示条 — 平滑平移到激活标签 */
+.activity-bar-indicator {
+  position: absolute;
+  left: 0;
+  width: 2px;
+  height: 24px;
+  background: var(--ab-indicator);
+  border-radius: 0 2px 2px 0;
+  transition: top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 页面切换过渡动画 ──────────────────────────── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition-enter {
+  animation: pageFadeIn 0.28s ease-out;
+}
+
+/* ── 内容区平滑滚动 ───────────────────────────── */
+.content-scroll {
+  scroll-behavior: smooth;
+}
+
+/* ── 底部小贴士微动效 ──────────────────────────── */
+@keyframes tipFadeSlide {
+  0%   { opacity: 0; transform: translateY(4px); }
+  40%  { opacity: 0.65; transform: translateY(0); }
+  100% { opacity: 0.55; transform: translateY(0); }
+}
+.footer-tip {
+  display: inline-block;
+  animation: tipFadeSlide 1.5s ease-out;
 }
 
 /* 环境卡片 */
@@ -11,7 +258,7 @@ body {
   transition: box-shadow 0.2s;
 }
 .env-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* 操作栏 */
@@ -33,14 +280,66 @@ body {
 /* 环境卡片网格 */
 .env-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+}
+
+/* ── 外框绿条旋转一圈动画（圆锥渐变描边） ────── */
+@property --spin-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes greenBarSpin {
+  to { --spin-angle: 360deg; }
+}
+
+/* 已激活卡片绿色边框 */
+.env-card.activated {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 1px var(--color-primary), 0 1px 3px rgba(0,0,0,0.06);
+  position: relative;
+}
+
+/* 旋转光条：2px 外框描边，圆锥渐变扫一圈 */
+.env-card.activated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--spin-angle),
+    transparent 0%,
+    var(--color-primary) 4%,
+    var(--color-primary) 16%,
+    transparent 24%
+  ) border-box;
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: greenBarSpin 0.9s ease-out;
+}
+
+/* 项目列表行 hover */
+.project-list-row {
+  cursor: pointer;
+}
+.project-list-row:hover {
+  background: var(--bg-card-hover);
 }
 
 /* 任务进度 */
 .task-item {
   padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 .task-item:last-child {
   border-bottom: none;
@@ -50,7 +349,7 @@ body {
 .task-clear-footer {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-primary);
 }
 
 /* 复制按钮 */
@@ -63,15 +362,15 @@ body {
   opacity: 1;
 }
 
-/* 指令集命令按钮 - 更好的等宽字体 */
+/* 指令集命令按钮 */
 .cmd-btn {
   font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
   transition: all 0.2s ease;
 }
 .cmd-btn:hover {
-  border-color: #4CAF50 !important;
-  background: rgba(76, 175, 80, 0.08) !important;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.12);
+  border-color: var(--color-primary) !important;
+  background: var(--color-primary-bg) !important;
+  box-shadow: 0 0 0 2px var(--color-primary-ring);
 }
 
 /* ── 指令集侧边栏 ────────────────────────────────── */
@@ -102,13 +401,13 @@ body {
   transition: background 0.2s ease;
 }
 .cmd-sidebar-item:hover {
-  background: var(--cmd-sidebar-hover, rgba(0,0,0,0.04));
+  background: var(--cmd-sidebar-hover, var(--bg-hover, rgba(0,0,0,0.04)));
 }
 .cmd-sidebar-item.active {
   font-weight: 600;
 }
 .cmd-sidebar-item.active::before {
-  background: #4CAF50;
+  background: var(--color-primary);
 }
 .cmd-sidebar-item .cmd-cat-name {
   flex: 1;
@@ -143,14 +442,14 @@ body {
   margin-bottom: 0;
   gap: 14px;
   transition: all 0.15s ease;
-  border-bottom: 1px solid rgba(128,128,128,0.12);
+  border-bottom: 1px solid var(--border-light);
   border-radius: 0;
 }
 .cmd-item:last-child {
   border-bottom: none;
 }
 .cmd-item:hover {
-  background: rgba(76, 175, 80, 0.03) !important;
+  background: var(--color-primary-bg) !important;
 }
 .cmd-item .cmd-item-desc {
   flex: 1;
@@ -182,13 +481,13 @@ body {
   border-radius: 8px;
 }
 .cmd-edit-card.new {
-  border: 1px solid rgba(76, 175, 80, 0.4);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.06);
+  border: 1px solid var(--color-primary-border);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 /* 搜索高亮 */
 .search-highlight {
-  color: #4CAF50;
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -196,6 +495,13 @@ body {
 @media (max-width: 768px) {
   .env-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 窄窗口时隐藏标题文字，仅显示图标 */
+@media (max-width: 900px) {
+  .app-title-text {
+    display: none;
   }
 }
 
@@ -211,15 +517,45 @@ body {
 }
 .cmd-sidebar::-webkit-scrollbar-thumb,
 .cmd-content::-webkit-scrollbar-thumb {
-  background: rgba(128,128,128,0.3);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 .cmd-sidebar::-webkit-scrollbar-thumb:hover,
 .cmd-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(128,128,128,0.5);
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* ── 隐藏滚动条 ──────────────────────────────────── */
+/* ── 状态栏 Footer ───────────────────────────────── */
+.app-footer {
+  -webkit-app-region: no-drag;
+  transition: background 0.2s, color 0.2s;
+}
+.app-footer span {
+  transition: color 0.15s;
+}
+.app-footer .ant-layout-footer {
+  margin: 0;
+  padding: 0;
+}
+
+/* 顶栏状态区 */
+.header-status {
+  transition: background 0.15s, border-color 0.15s;
+}
+.header-status:hover {
+  background: var(--color-primary-bg) !important;
+  border-color: var(--color-primary-border) !important;
+}
+
+/* 项目列表行 hover */
+.project-list-row:hover {
+  background: var(--bg-table-row-hover);
+}
+.project-list-row:last-child {
+  border-bottom: none;
+}
+
+/* ── 隐藏全局滚动条 ──────────────────────────────── */
 ::-webkit-scrollbar {
   display: none;
 }

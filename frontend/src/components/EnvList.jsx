@@ -7,7 +7,8 @@ import {
   DeleteOutlined, BranchesOutlined, SearchOutlined,
   PythonOutlined, FolderOpenOutlined, AppstoreOutlined,
   PlayCircleOutlined, CheckCircleOutlined, UnorderedListOutlined,
-  ExportOutlined, MoreOutlined, CloseCircleOutlined,
+  ExportOutlined, MoreOutlined, CloseCircleOutlined, LoadingOutlined,
+  ConsoleSqlOutlined,
 } from '@ant-design/icons';
 import { useI18n } from '../i18n/context';
 import { isProtectedEnv } from '../utils/envName';
@@ -18,7 +19,8 @@ const { Text, Paragraph } = Typography;
 export default function EnvList({
   environments, loading, searchText, onSearchChange,
   onCreate, onClone, onDelete, onCopyActivate, onActivate, activatedEnv, onRefresh,
-  onManagePackages, onExport, onCleanInvalid, calcSignal,
+  onManagePackages, onExport, onExportReq, onCleanInvalid, calcSignal,
+  exportingEnv, onOpenTerminal, onOpenProjectTerminal, projectDir,
 }) {
   const { t } = useI18n();
 
@@ -67,7 +69,7 @@ export default function EnvList({
             value={searchText}
             onChange={(e) => onSearchChange(e.target.value)}
             allowClear
-            style={{ width: 280 }}
+            style={{ width: '100%', maxWidth: 360, minWidth: 180 }}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
             {t('env.create')}
@@ -102,8 +104,13 @@ export default function EnvList({
                 onActivate={() => onActivate(env.name)}
                 onManagePackages={() => onManagePackages(env)}
                 onExport={() => onExport(env.name)}
+                onExportReq={() => onExportReq(env.name)}
                 onCleanInvalid={() => onCleanInvalid(env.path)}
+                onOpenTerminal={() => onOpenTerminal(env.name)}
+                onOpenProjectTerminal={() => onOpenProjectTerminal(env.name)}
                 isActivated={activatedEnv === env.name}
+                exportingEnv={exportingEnv}
+                projectDir={projectDir}
               />
             ))}
           </div>
@@ -126,7 +133,7 @@ export default function EnvList({
   );
 }
 
-function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, onCopyActivate, onActivate, onManagePackages, onExport, onCleanInvalid, isActivated }) {
+function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, onCopyActivate, onActivate, onManagePackages, onExport, onExportReq, onCleanInvalid, onOpenTerminal, onOpenProjectTerminal, isActivated, exportingEnv, projectDir }) {
   const { t } = useI18n();
   const [activating, setActivating] = useState(false);
   const [envSize, setEnvSize] = useState(null);
@@ -190,6 +197,8 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
 
   // 右键菜单项
   const contextMenuItems = [
+    { key: 'open-terminal', icon: <ConsoleSqlOutlined />, label: t('env.openInTerminal'), onClick: onOpenTerminal },
+    ...(projectDir ? [{ key: 'open-project-terminal', icon: <FolderOpenOutlined />, label: t('project.openProjectCmd'), onClick: onOpenProjectTerminal }] : []),
     { key: 'copy-path', icon: <CopyOutlined />, label: t('env.copyPath'), onClick: () => onCopyActivate() },
     { key: 'open-folder', icon: <FolderOpenOutlined />, label: t('env.openInExplorer'), onClick: () => { window.electron?.invoke('shell:open-path', env.path); } },
   ];
@@ -222,10 +231,18 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
       onClick: onManagePackages,
     },
     {
-      key: 'export',
-      icon: <ExportOutlined />,
-      label: t('env.export'),
+      key: 'export-yml',
+      icon: exportingEnv?.name === env.name && exportingEnv?.type === 'yml' ? <LoadingOutlined /> : <ExportOutlined />,
+      label: t('env.exportYml'),
       onClick: onExport,
+      disabled: exportingEnv?.name === env.name,
+    },
+    {
+      key: 'export-req',
+      icon: exportingEnv?.name === env.name && exportingEnv?.type === 'req' ? <LoadingOutlined /> : <ExportOutlined />,
+      label: t('env.exportReq'),
+      onClick: onExportReq,
+      disabled: exportingEnv?.name === env.name,
     },
   ];
 
@@ -233,7 +250,7 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
     if (isActivated) {
       return (
         <Tooltip title={t('env.activated')}>
-          <Button size="small" icon={<CheckCircleOutlined />} type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }}>
+          <Button size="small" icon={<CheckCircleOutlined />} type="primary" style={{ background: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
             {t('env.activated') || '已激活'}
           </Button>
         </Tooltip>
@@ -251,15 +268,16 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
   return (
     <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
       <Card
-      className="env-card"
+      className={`env-card${isActivated ? ' activated' : ''}`}
       size="small"
+      onDoubleClick={handleActivate}
       title={
         <Space>
-          <PythonOutlined style={{ color: isInvalid ? '#ff4d4f' : '#4CAF50', fontSize: 18 }} />
+          <PythonOutlined style={{ color: isInvalid ? 'var(--color-error)' : 'var(--color-python)', fontSize: 18 }} />
           <strong>{highlightText(env.name)}</strong>
           {isInvalid && <Tag color="error" icon={<CloseCircleOutlined />}>{t('env.invalid')}</Tag>}
           {isProtected && <Tag color="red">{t('env.protected')}</Tag>}
-          {isActivated && <Tag color="success" icon={<CheckCircleOutlined />}>{t('env.activated') || '已激活'}</Tag>}
+
         </Space>
       }
       extra={
@@ -314,9 +332,9 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
         <div>
           <Text type="secondary"><AppstoreOutlined style={{ marginRight: 4 }} />{t('env.packages')}：</Text>
           {env.package_count === -1 ? (
-            <span style={{ color: '#999' }}>{t('env.loading')}</span>
+            <span style={{ color: 'var(--color-loading-text)' }}>{t('env.loading')}</span>
           ) : (
-            <Badge count={env.package_count} showZero color="#4CAF50" overflowCount={9999} />
+            <Badge count={env.package_count} showZero color="var(--color-primary)" overflowCount={9999} />
           )}
         </div>
         <div>
@@ -343,7 +361,7 @@ function EnvCard({ env, highlight, calcEnabled, calcVersion, onClone, onDelete, 
               </Tag>
             </Tooltip>
           ) : envSize === null ? (
-            <span style={{ color: '#999', fontSize: 13 }}>{t('env.calculating')}</span>
+            <span style={{ color: 'var(--color-loading-text)', fontSize: 13 }}>{t('env.calculating')}</span>
           ) : (
             <Tag color="default">{envSize.display || '-'}</Tag>
           )}

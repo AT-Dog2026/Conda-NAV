@@ -13,6 +13,7 @@ debug.log
 # IDE
 .vscode/
 .idea/
+.codebuddy
 
 # OS
 .DS_Store

@@ -43,6 +43,8 @@ function loadSettings() {
         auto_start: raw.auto_start ?? false,
         silent_start: raw.silent_start ?? false,
         basic_op_mode: raw.basic_op_mode ?? 'terminal',
+        activated_env: raw.activated_env ?? null,
+        projects: Array.isArray(raw.projects) ? raw.projects : [],
       };
       return _settingsCache;
     }
@@ -57,6 +59,8 @@ function loadSettings() {
     auto_start: false,
     silent_start: false,
     basic_op_mode: 'terminal',
+    activated_env: null,
+    projects: [],
   };
   return _settingsCache;
 }
@@ -83,7 +87,11 @@ function saveSettings(data) {
     auto_start: data.auto_start ?? current.auto_start ?? false,
     silent_start: data.silent_start ?? current.silent_start ?? false,
     basic_op_mode: data.basic_op_mode ?? current.basic_op_mode ?? 'terminal',
+    activated_env: data.activated_env !== undefined ? data.activated_env : (current.activated_env ?? null),
+    projects: data.projects !== undefined ? data.projects : (current.projects ?? []),
   }, null, 2), 'utf-8');
+  // 写入后再次清缓存，确保后续读取命中磁盘最新数据
+  invalidateSettingsCache();
 }
 
 function condaExeCandidates(condaRoot) {
@@ -274,6 +282,55 @@ async function checkCondaStatus() {
   };
 }
 
+// ── 激活环境持久化 ──────────────────────────────────
+function getActivatedEnv() {
+  return loadSettings().activated_env || null;
+}
+
+function setActivatedEnv(name) {
+  saveSettings({ activated_env: name || null });
+}
+
+// ── 项目 CRUD ────────────────────────────────────────
+function generateId() {
+  return 'proj-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
+function getProjects() {
+  return loadSettings().projects || [];
+}
+
+function addProject({ name, path: projPath, boundEnv = '' }) {
+  if (!name || !projPath) throw new Error('项目名称和路径不能为空');
+  const projects = getProjects();
+  if (projects.some(p => p.name === name)) throw new Error('项目名称已存在');
+  const project = { id: generateId(), name, path: projPath, boundEnv };
+  projects.push(project);
+  saveSettings({ projects });
+  return project;
+}
+
+function updateProject(id, updates) {
+  const projects = getProjects();
+  const idx = projects.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error('项目不存在');
+  // 如果修改了名称，检查是否与其他项目重名
+  if (updates.name && updates.name !== projects[idx].name) {
+    if (projects.some(p => p.id !== id && p.name === updates.name)) throw new Error('项目名称已存在');
+  }
+  projects[idx] = { ...projects[idx], ...updates };
+  saveSettings({ projects });
+  return projects[idx];
+}
+
+function deleteProject(id) {
+  const projects = getProjects();
+  const idx = projects.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error('项目不存在');
+  projects.splice(idx, 1);
+  saveSettings({ projects });
+}
+
 module.exports = {
   settingsFile,
   settingsDir,
@@ -286,4 +343,10 @@ module.exports = {
   testCondaPath,
   checkCondaStatus,
   normalizeCalcTimeoutSec,
+  getActivatedEnv,
+  setActivatedEnv,
+  getProjects,
+  addProject,
+  updateProject,
+  deleteProject,
 };

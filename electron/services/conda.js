@@ -717,6 +717,17 @@ async function exportEnv(condaExe, name) {
   return { ok: false, msg: stderr || stdout || '导出失败' };
 }
 
+// ── 导出 requirements.txt (pip freeze) ──────────────────
+async function pipFreeze(condaExe, name) {
+  assertSafeEnvName(name);
+  const { rc, stdout, stderr } = await run(
+    [condaExe, 'run', '-n', name, 'pip', 'freeze'],
+    60000
+  );
+  if (rc === 0 && stdout.trim()) return { ok: true, content: stdout };
+  return { ok: false, msg: stderr || stdout || '导出 requirements.txt 失败' };
+}
+
 // ── 从 yml 导入环境 ────────────────────────────────────
 async function importEnv(condaExe, filePath, name, procHolder = null, onStdout = null) {
   assertSafeEnvName(name);
@@ -900,6 +911,7 @@ module.exports = {
   uninstallPackage,
   upgradePackage,
   exportEnv,
+  pipFreeze,
   importEnv,
   importFromRequirements,
   installRequirementsToEnv,

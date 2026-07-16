@@ -7,7 +7,8 @@ import {
   SettingOutlined, ExclamationCircleOutlined, ToolOutlined,
   CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, ConsoleSqlOutlined,
   SunOutlined, MoonOutlined, PlusOutlined, LoadingOutlined,
-  FolderOpenOutlined, FolderOutlined, CodeOutlined, ImportOutlined,
+  CodeOutlined, ImportOutlined, FolderOpenOutlined,
+  ExperimentOutlined, ProjectOutlined,
 } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
@@ -19,13 +20,14 @@ const SettingsModal = lazy(() => import('./components/SettingsModal'));
 const OnboardingModal = lazy(() => import('./components/OnboardingModal'));
 const TerminalDrawer = lazy(() => import('./components/TerminalDrawer'));
 const CommandsModal = lazy(() => import('./components/CommandsModal'));
+const ProjectPanel = lazy(() => import('./components/ProjectPanel'));
 import { addLog } from './components/TerminalDrawer';
 import { useI18n } from './i18n/context';
 import api, { isElectron } from './api';
 import './App.css';
 
-const { Header, Content, Footer } = Layout;
-const { Title, Text } = Typography;
+const { Header, Footer } = Layout;
+const { Text } = Typography;
 
 const antdLocales = { 'zh-CN': zhCN, 'en-US': enUS };
 
@@ -46,36 +48,32 @@ export default function App() {
   const [activeTaskIds, setActiveTaskIds] = useState([]);
   const [tasks, setTasks] = useState({});
 
-  // 包管理面板
   const [pkgModalEnv, setPkgModalEnv] = useState(null);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [condaReady, setCondaReady] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(false);
-  const [quickCmdOpen, setQuickCmdOpen] = useState(false);
 
   const [beStatus, setBeStatus] = useState('idle');
 
-  // 计算大小设置变更信号：设置弹窗/引导保存后 bump，EnvList 据此重查开关状态
   const [calcSignal, setCalcSignal] = useState(0);
+  const [exportingEnv, setExportingEnv] = useState(null); // { name, type } | null
 
-  // 当前激活的环境
   const [activatedEnv, setActivatedEnv] = useState(null);
-
-  // 项目目录
   const [projectDir, setProjectDir] = useState('');
+  const [tipIndex, setTipIndex] = useState(0);
 
-  // 基础操作方式设置
   const [basicOpMode, setBasicOpMode] = useState('terminal');
   const [condaExe, setCondaExe] = useState('conda');
 
-  // 主题状态（dark / light / system），默认 dark
   const [themeMode, setThemeMode] = useState('dark');
   const [systemIsDark, setSystemIsDark] = useState(true);
   const isDarkMode = themeMode === 'system' ? systemIsDark : themeMode === 'dark';
 
-  // 启动时读取系统主题
+  // VSCode 风格侧边栏：当前激活标签页
+  const [sidebarTab, setSidebarTab] = useState('envs'); // 'envs' | 'projects' | 'settings'
+
+  // 读取系统主题
   useEffect(() => {
     if (window.electron?.invoke) {
       window.electron.invoke('native-theme:get').then((d) => setSystemIsDark(!!d));
@@ -83,7 +81,22 @@ export default function App() {
     }
   }, []);
 
-  // 启动时健康检查
+  // 同步 data-theme 到 DOM，驱动 CSS 变量切换
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  // 底部小贴士轮回滚动
+  useEffect(() => {
+    const tips = t('footer.tips') || [];
+    if (!tips.length) return;
+    const timer = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % tips.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [t]);
+
+  // 启动时初始化
   useEffect(() => {
     setBeStatus('checking');
     addLog('info', t('log.healthCheck'), '');
@@ -100,7 +113,7 @@ export default function App() {
         setBeStatus('disconnected');
         addLog('error', t('error.backendConnectFail'), '');
       });
-    // 加载当前激活环境
+    // 加载当前激活环境（已实现持久化）
     api.getActivated()
       .then(res => setActivatedEnv(res.data.activated_env))
       .catch(() => {});
@@ -108,7 +121,7 @@ export default function App() {
     api.getProjectDir()
       .then(res => setProjectDir(res.data.project_dir || ''))
       .catch(() => {});
-    // 加载基础操作方式设置
+    // 加载设置
     api.getSettings()
       .then(res => {
         setBasicOpMode(res.data.basic_op_mode || 'terminal');
@@ -117,18 +130,16 @@ export default function App() {
       .catch(() => {});
   }, [t]);
 
-  // 监听托盘菜单事件
+  // 托盘菜单事件
   useEffect(() => {
     const unsubs = [];
     if (window.electron?.on) {
-      // 托盘切换环境
       const unsub1 = window.electron.on('tray:env-activated', (name) => {
         setActivatedEnv(name);
-        message.success(`已切换至环境: ${name}`);
-        addLog('success', t('env.activated') || '环境激活成功', name);
+        message.success(t('env.switchedTo', { name }));
+        addLog('success', t('env.activated'), name);
       });
       unsubs.push(unsub1);
-      // 托盘新建环境
       const unsub2 = window.electron.on('tray:create-env', () => {
         handleCreate();
       });
@@ -173,44 +184,52 @@ export default function App() {
   const handleClone = (env) => { setModalMode('clone'); setCloneSource(env); setModalOpen(true); };
   const handleManagePackages = (env) => { setPkgModalEnv(env); };
 
-  // ── 导出 environment.yml ─────────────────────────────
-  const handleExport = async (name) => {
+  // ── 导出 environment.yml / requirements.txt ───────────
+  const handleExport = async (name, type = 'yml') => {
+    const isYml = type === 'yml';
+    const apiMethod = isYml ? api.exportEnvironment : api.exportRequirements;
+    const mime = isYml ? 'text/yaml' : 'text/plain';
+    const label = isYml ? 'environment.yml' : 'requirements.txt';
+
+    const hide = message.loading(t('env.exporting', { name }), 0);
+    setExportingEnv({ name, type });
     try {
-      addLog('cmd', 'env:export', `conda env export -n ${name}`);
-      const res = await api.exportEnvironment(name);
+      addLog('cmd', `env:export:${type}`, isYml ? `conda env export -n ${name}` : `conda run -n ${name} pip freeze`);
+      const res = await apiMethod(name);
       const content = res.data?.content || res.data;
       if (!content) {
         message.error(t('env.exportFail'));
         return;
       }
-      // Electron: 原生保存对话框；浏览器: Blob 下载
       if (isElectron()) {
         const filePath = await api.openExportDialog({
-          title: `导出 environment.yml - ${name}`,
-          defaultPath: `${name}_environment.yml`,
+          title: t('env.exportDialogTitle', { label, name }),
+          defaultPath: `${name}_${label}`,
         });
         if (!filePath) return;
-        // 通过 IPC 写文件
         await window.electron.invoke('fs:write-file', { path: filePath, content });
         message.success(t('env.exported', { path: filePath }));
         addLog('success', t('env.exported', { path: filePath }), name);
       } else {
-        const blob = new Blob([content], { type: 'text/yaml' });
+        const blob = new Blob([content], { type: mime });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `${name}_environment.yml`; a.click();
+        a.href = url; a.download = `${name}_${label}`; a.click();
         URL.revokeObjectURL(url);
-        message.success(t('env.exported', { path: `${name}_environment.yml` }));
+        message.success(t('env.exported', { path: `${name}_${label}` }));
       }
     } catch (err) {
       message.error(t('env.exportFail') + ': ' + err.message);
       addLog('error', t('env.exportFail'), err.message);
+    } finally {
+      hide();
+      setExportingEnv(null);
     }
   };
 
-  // ── 从 yml 或 requirements.txt 导入 ───────────────────────
+  // ── 导入 ────────────────────────────────────────────
   const [importFilePath, setImportFilePath] = useState(null);
-  const [importType, setImportType] = useState('yml'); // 'yml' | 'req'
+  const [importType, setImportType] = useState('yml');
 
   const handleImportRequest = async (type = 'yml') => {
     setImportType(type);
@@ -219,7 +238,7 @@ export default function App() {
         const filters = type === 'yml'
           ? [{ name: 'YAML', extensions: ['yml', 'yaml'] }]
           : [{ name: 'Text', extensions: ['txt'] }];
-        const title = type === 'yml' ? '选择 environment.yml' : '选择 requirements.txt';
+        const title = type === 'yml' ? t('env.selectYmlDialogTitle') : t('env.selectTxtDialogTitle');
         const filePath = await window.electron.openFileDialog({ title, filters });
         if (!filePath) return;
         setImportFilePath(filePath);
@@ -245,15 +264,13 @@ export default function App() {
     }
   };
 
-  // 预填充任务初始状态，确保 TaskDrawer 初始化时有正确的 task_type
   const initTask = (taskId, taskType) => {
     setTasks((prev) => {
-      if (prev[taskId]) return prev; // 已有真实数据则跳过
+      if (prev[taskId]) return prev;
       return { ...prev, [taskId]: { task_id: taskId, task_type: taskType, status: 'pending', progress: 0, message: t('task.pending') } };
     });
   };
 
-  // 包操作任务提交后：加入任务追踪 + 打开任务抽屉
   const handlePkgTaskSubmitted = (taskId, taskType) => {
     if (taskId) {
       initTask(taskId, taskType || '');
@@ -262,10 +279,9 @@ export default function App() {
     }
   };
 
-  // 终端模式：构造命令并打开 CMD 终端
   const runInTerminal = (command, logLabel) => {
     if (!window.electron?.invoke) {
-      message.error('当前环境不支持打开终端，请使用可视化队列模式');
+      message.error(t('env.terminalUnavailable'));
       addLog('error', 'terminal:unavailable', command);
       return;
     }
@@ -299,7 +315,6 @@ export default function App() {
           return;
         }
         if (basicOpMode === 'terminal') {
-          // Terminal 模式：打开终端手动执行
           let command;
           const c = condaExe || 'conda';
           if (importType === 'yml') {
@@ -314,7 +329,6 @@ export default function App() {
           setImportFilePath(null);
           return;
         }
-        // Queue 模式：走任务队列 API
         let res;
         if (importType === 'yml') {
           res = await api.importEnvironment({ file: importFilePath, name: values.name });
@@ -361,7 +375,6 @@ export default function App() {
     const name = deleteTarget.name;
     setDeleteTarget(null);
     
-    // 名称不匹配直接拒绝
     if ((confirmName || '').toLowerCase() !== name.toLowerCase()) {
       message.error(t('error.deleteCancel'));
       return;
@@ -390,7 +403,7 @@ export default function App() {
         ? `rmdir /s /q "${envPath}"`
         : `rm -rf "${envPath}"`;
       runInTerminal(command, 'clean-invalid:terminal');
-      addLog('cmd', 'env:clean-invalid', `终端删除目录: ${envPath}`);
+      addLog('cmd', 'env:clean-invalid', t('log.terminalDeleteDir', { path: envPath }));
       return;
     }
     try {
@@ -399,7 +412,7 @@ export default function App() {
       setActiveTaskIds((prev) => [...prev, res.data.task_id]);
       setDrawerOpen(true);
       message.success(t('task.submitted'));
-      addLog('cmd', 'env:clean-invalid', `清理无效环境目录: ${envPath}`);
+      addLog('cmd', 'env:clean-invalid', t('log.cleanInvalidEnvDir', { path: envPath }));
     } catch (err) {
       message.error(err.message || t('error.operationFailed'));
       addLog('error', t('error.operationFailed'), err.message);
@@ -418,26 +431,23 @@ export default function App() {
     }
   };
 
-  // 执行实际的环境激活
   const handleActivate = async (envName) => {
     try {
       const res = await api.activateEnvironment(envName);
       if (res.data.success) {
         setActivatedEnv(envName);
         message.success(res.data.message);
-        addLog('success', t('env.activated') || '环境激活成功', envName);
-        // 刷新托盘菜单
+        addLog('success', t('env.activated'), envName);
         api.refreshTray().catch(() => {});
       } else {
         message.error(res.data.message);
-        addLog('error', t('env.activateFail') || '环境激活失败', res.data.message);
+        addLog('error', t('env.activateFail'), res.data.message);
       }
     } catch (err) {
       message.error(err.message || t('error.operationFailed'));
     }
   };
 
-  // 打开终端
   const handleOpenTerminal = async (envName) => {
     try {
       const res = await api.openTerminal(envName);
@@ -453,10 +463,9 @@ export default function App() {
     }
   };
 
-  // 选择项目目录
   const handleSelectProjectDir = async () => {
     try {
-      const dir = await api.openDirectoryDialog({ title: '选择项目目录' });
+      const dir = await api.openDirectoryDialog({ title: t('project.selectDirDialogTitle') });
       if (dir) {
         await api.setProjectDir(dir);
         setProjectDir(dir);
@@ -467,21 +476,39 @@ export default function App() {
     }
   };
 
-  // 打开项目CMD（激活环境 + cd到项目目录）
   const handleOpenProjectTerminal = async () => {
     if (!projectDir) {
       message.warning(t('project.setFirst'));
       return;
     }
     if (!activatedEnv) {
-      message.warning('请先激活一个环境');
+      message.warning(t('env.activateFirst'));
       return;
     }
     try {
       const res = await api.openProjectTerminal(activatedEnv, projectDir);
       if (res.data.ok || res.data.success) {
         message.success(t('env.openTerminalSuccess'));
-        addLog('success', '项目终端已打开', `${activatedEnv} @ ${projectDir}`);
+        addLog('success', t('log.openedProjectTerminal'), `${activatedEnv} @ ${projectDir}`);
+      } else {
+        message.error(res.data.msg || t('env.openTerminalFail'));
+      }
+    } catch (err) {
+      message.error(err.message || t('env.openTerminalFail'));
+    }
+  };
+
+  // 右键菜单版：接受环境名参数，不依赖全局 activatedEnv
+  const handleOpenProjectTerminalForEnv = async (envName) => {
+    if (!projectDir) {
+      message.warning(t('project.setFirst'));
+      return;
+    }
+    try {
+      const res = await api.openProjectTerminal(envName, projectDir);
+      if (res.data.ok || res.data.success) {
+        message.success(t('env.openTerminalSuccess'));
+        addLog('success', t('log.openedProjectTerminal'), `${envName} @ ${projectDir}`);
       } else {
         message.error(res.data.msg || t('env.openTerminalFail'));
       }
@@ -540,6 +567,18 @@ export default function App() {
     setCondaReady(false);
   }, []);
 
+  const handleSettingsSaved = useCallback(() => {
+    api.checkCondaStatus().then((res) => {
+      setCondaReady(!!res.data.ready);
+      if (res.data.ready) fetchEnvironments();
+    });
+    api.getSettings().then(res => {
+      setBasicOpMode(res.data.basic_op_mode || 'terminal');
+      setCondaExe(res.data.conda_path || 'conda');
+    }).catch(() => {});
+    setCalcSignal((n) => n + 1);
+  }, [fetchEnvironments]);
+
   const statusTags = {
     checking: { icon: <SyncOutlined spin />, color: 'processing', text: t('status.checking') },
     connected: { icon: <CheckCircleOutlined />, color: 'success', text: t('status.connected') },
@@ -547,30 +586,202 @@ export default function App() {
   };
   const st = statusTags[beStatus];
 
+  // ── 侧边栏标签页定义 ─────────────────────────────────
+  const sidebarTabs = [
+    {
+      key: 'envs',
+      icon: <ExperimentOutlined />,
+      label: t('sidebar.envs'),
+    },
+    {
+      key: 'projects',
+      icon: <ProjectOutlined />,
+      label: t('sidebar.projects'),
+    },
+    {
+      key: 'commands',
+      icon: <CodeOutlined />,
+      label: t('sidebar.commands'),
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: t('sidebar.settings'),
+    },
+  ];
+
   return (
     <ConfigProvider
       locale={antdLocales[locale] || zhCN}
       theme={{
-        algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        token: { colorPrimary: '#4CAF50', borderRadius: 6 },
+        algorithm: isDarkMode
+          ? [
+              theme.darkAlgorithm,
+              (seedToken, mapToken) => ({
+                ...mapToken,
+                colorPrimary: '#4CAF50',
+                colorPrimaryHover: '#43A047',
+                colorPrimaryActive: '#388E3C',
+                colorPrimaryBg: 'rgba(76,175,80,0.12)',
+                colorPrimaryBgHover: 'rgba(76,175,80,0.18)',
+                colorPrimaryBorder: 'rgba(76,175,80,0.3)',
+                colorPrimaryBorderHover: 'rgba(76,175,80,0.5)',
+              }),
+            ]
+          : theme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#4CAF50',
+          colorSuccess: isDarkMode ? '#4ADE80' : '#16A34A',
+          colorWarning: isDarkMode ? '#FBBF24' : '#D97706',
+          colorError: isDarkMode ? '#F87171' : '#DC2626',
+          colorInfo: isDarkMode ? '#60A5FA' : '#2563EB',
+          borderRadius: 6,
+        },
       }}
     >
       <AntdApp>
-      <Layout style={{ minHeight: '100vh' }}>
-        {/* ═══ 固定顶部 ═══════════════════════════════════ */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        {/* ═══ 顶部导航条 (增高) ═══════════════════════ */}
         <Header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: isDarkMode ? '#1f1f1f' : '#fff',
-          borderBottom: `1px solid ${isDarkMode ? '#363636' : '#f0f0f0'}`,
+          flexWrap: 'nowrap',
+          background: 'var(--bg-header)',
+          borderBottom: '1px solid var(--border-header)',
           padding: '0 24px',
+          height: 56,
+          lineHeight: 'normal',
         }}>
           <Space style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-            <SettingOutlined style={{ fontSize: 22, color: '#4CAF50', flexShrink: 0 }} />
-            <Title level={4} style={{ margin: 0, color: isDarkMode ? '#fff' : '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{t('app.title')}</Title>
+            <img src="./icon.png" alt="Conda NAV" style={{ width: 24, height: 24, flexShrink: 0 }} />
+            <span className="app-title-text" style={{
+              fontSize: 18, fontWeight: 700, color: 'var(--text-heading)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+              lineHeight: '56px',
+            }}>{t('app.title')}</span>
           </Space>
-          <Space style={{ flexShrink: 0 }}>
-            {st && <Tag icon={st.icon} color={st.color}>{st.text}</Tag>}
+
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', minWidth: 0, overflow: 'hidden', gap: 8 }}>
+            {/* ── 状态栏（项目 + 激活环境） ── */}
+            <div className="header-status" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 8px',
+              borderRadius: 6,
+              background: 'var(--bg-header-status)',
+              border: '1px solid var(--border-header-status)',
+              lineHeight: 'normal',
+              maxWidth: 'min(55vw, 720px)',
+              minWidth: 0,
+              overflow: 'hidden',
+              flexWrap: 'nowrap',
+              flex: '0 1 auto',
+            }}>
+              <FolderOpenOutlined style={{ color: 'var(--color-primary)', fontSize: 14, flexShrink: 0 }} />
+              <Text style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {t('project.title')}:
+              </Text>
+              {projectDir ? (
+                <>
+                  <Tag
+                    color="default"
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      margin: 0,
+                      fontSize: 12,
+                      borderColor: 'var(--border-secondary)',
+                      color: 'var(--text-primary)',
+                      background: 'var(--bg-card)',
+                      flexShrink: 1,
+                      minWidth: 100,
+                    }}
+                    title={projectDir}
+                  >
+                    {projectDir}
+                  </Tag>
+                  <Tooltip title={t('project.changeDir')}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<FolderOpenOutlined />}
+                      onClick={handleSelectProjectDir}
+                    />
+                  </Tooltip>
+                </>
+              ) : (
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<FolderOpenOutlined />}
+                  onClick={handleSelectProjectDir}
+                  style={{ fontSize: 12, padding: '0 4px' }}
+                >
+                  {t('project.selectDir')}
+                </Button>
+              )}
+
+              {/* 分隔线 */}
+              {(projectDir || activatedEnv) && (
+                <div style={{
+                  width: 1, height: 16, background: 'var(--border-divider)',
+                  flexShrink: 0, margin: '0 2px',
+                }} />
+              )}
+
+              {/* 激活环境 */}
+              {activatedEnv ? (
+                <>
+                  <Tag
+                    icon={<CheckCircleOutlined />}
+                    style={{
+                      fontSize: 12, margin: 0,
+                      color: 'var(--color-primary)',
+                      borderColor: 'var(--color-primary)',
+                      background: 'transparent',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                    title={activatedEnv}
+                  >
+                    {activatedEnv}
+                  </Tag>
+                  <Tooltip title={t('env.openInTerminal')}>
+                    <Button
+                      size="small"
+                      type="primary"
+                      ghost
+                      icon={<ConsoleSqlOutlined />}
+                      onClick={() => handleOpenTerminal(activatedEnv)}
+                      style={{ fontSize: 12, padding: '0 7px' }}
+                    />
+                  </Tooltip>
+                  {projectDir && (
+                    <Tooltip title={t('project.openProjectCmd')}>
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<CodeOutlined />}
+                        onClick={handleOpenProjectTerminal}
+                        style={{ fontSize: 12, padding: '0 7px' }}
+                      />
+                    </Tooltip>
+                  )}
+                </>
+              ) : (
+                <Text style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+                  {t('env.noActivated')}
+                </Text>
+              )}
+            </div>
+
+            <div style={{
+              width: 1, height: 24, background: 'var(--border-separator)', margin: '0 4px',
+            }} />
+
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               {t('env.create')}
             </Button>
@@ -583,25 +794,15 @@ export default function App() {
               }}
             >
               <Button icon={<ImportOutlined />}>
-                {t('env.import') || '导入'}
+                {t('env.import')}
               </Button>
             </Dropdown>
-            <Button type="text" icon={<CodeOutlined />} onClick={() => setQuickCmdOpen(true)}>
-              {t('app.quickCommands')}
-            </Button>
-            {basicOpMode === 'terminal' ? (
-              <Tag icon={<ConsoleSqlOutlined />} color="default" style={{ cursor: 'default', userSelect: 'none' }} title={t('app.cmdModeHint')}>
-                {t('app.cmdMode')}
-              </Tag>
-            ) : (
+            {basicOpMode !== 'terminal' && (
               <Button type="text" icon={activeTaskIds.length > 0 ? <LoadingOutlined spin /> : <ToolOutlined />} onClick={() => setDrawerOpen(true)}>
                 {t('app.tasks')}
                 {activeTaskIds.length > 0 && <span style={{ marginLeft: 4 }}>({activeTaskIds.length})</span>}
               </Button>
             )}
-            <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
-              {t('app.settings')}
-            </Button>
             <Popconfirm
               title={(() => {
                 const next = themeMode === 'dark' ? 'light' : themeMode === 'light' ? 'system' : 'dark';
@@ -610,7 +811,7 @@ export default function App() {
                 return (
                   <span>
                     {t('app.themeSwitchTo')}
-                    <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>{themeName}</span>
+                    <span style={{ color: 'var(--color-error)', fontWeight: 'bold' }}>{themeName}</span>
                     {t('app.themeMayCause')}
                   </span>
                 );
@@ -630,146 +831,240 @@ export default function App() {
                 title={themeMode === 'dark' ? t('app.darkMode') : themeMode === 'light' ? t('app.lightMode') : t('app.systemMode')}
               />
             </Popconfirm>
-          </Space>
+          </div>
         </Header>
 
-        {/* 当前项目模块 */}
-        <div style={{
-          background: isDarkMode ? '#1a1a2e' : '#e3f2fd',
-          borderBottom: `1px solid ${isDarkMode ? '#2a2a4a' : '#bbdefb'}`,
-          padding: '6px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}>
-          <Space size={4}>
-            <FolderOutlined style={{ color: '#4CAF50', fontSize: 15 }} />
-            <Text strong style={{ fontSize: 13, color: isDarkMode ? '#aaa' : '#555' }}>
-              {t('project.title')}:
-            </Text>
-          </Space>
-          {projectDir ? (
-            <Space size={8} style={{ flex: 1, minWidth: 0 }}>
-              <Tag
-                color="processing"
+        {/* ═══ 主体：Activity Bar 侧边栏 + 内容区 ═══════════ */}
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* VSCode 风格 Activity Bar (垂直标签页图标栏) */}
+          <div className="activity-bar" style={{
+            width: 48,
+            background: 'var(--ab-bg)',
+            borderRight: '1px solid var(--ab-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            paddingTop: 8,
+            flexShrink: 0,
+            position: 'relative',
+          }}>
+            {/* 全局浮动指示条 — 平滑平移到激活标签位置 */}
+            <div
+              className="activity-bar-indicator"
+              style={{ top: (() => {
+                const idx = sidebarTabs.findIndex(t => t.key === sidebarTab);
+                return 8 + (idx >= 0 ? idx : 0) * 48 + 12;
+              })() }}
+            />
+            {sidebarTabs.map((tab) => {
+              const isActive = sidebarTab === tab.key;
+              return (
+                <Tooltip key={tab.key} title={tab.label} placement="right">
+                  <div
+                    className={`activity-bar-item${isActive ? ' active' : ''}`}
+                    onClick={() => setSidebarTab(tab.key)}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: isActive ? 'var(--ab-icon-active)' : 'var(--ab-icon-inactive)',
+                      position: 'relative',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>{tab.icon}</span>
+                  </div>
+                </Tooltip>
+              );
+            })}
+          </div>
+
+          {/* 内容区 */}
+          <Layout.Content className="content-scroll" style={{
+            flex: 1,
+            overflow: 'auto',
+            background: 'var(--bg-content)',
+          }}>
+            {/* 内容区内边距包装 */}
+            <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+              {/* Conda 未就绪警告 */}
+              {!condaReady && !onboardingOpen && sidebarTab === 'envs' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message={t('onboarding.bannerTitle')}
+                  description={t('onboarding.bannerDesc')}
+                  action={
+                    <Button size="small" type="primary" onClick={() => setSidebarTab('settings')}>
+                      {t('app.settings')}
+                    </Button>
+                  }
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+
+              {sidebarTab === 'envs' && (
+                <div key="envs" className="page-transition-enter">
+                  <EnvList
+                    environments={environments}
+                    loading={loading}
+                    searchText={searchText}
+                    onSearchChange={setSearchText}
+                    onCreate={handleCreate}
+                    onClone={handleClone}
+                    onDelete={handleDeleteRequest}
+                    onCopyActivate={handleCopyActivate}
+                    onActivate={handleActivate}
+                    activatedEnv={activatedEnv}
+                    onRefresh={fetchEnvironments}
+                    onManagePackages={handleManagePackages}
+                    onExport={(name) => handleExport(name, 'yml')}
+                    onExportReq={(name) => handleExport(name, 'req')}
+                    onCleanInvalid={handleCleanInvalid}
+                    calcSignal={calcSignal}
+                    exportingEnv={exportingEnv}
+                    onOpenTerminal={handleOpenTerminal}
+                    onOpenProjectTerminal={handleOpenProjectTerminalForEnv}
+                    projectDir={projectDir}
+                  />
+                </div>
+              )}
+
+              {/* 项目标签页内容 */}
+              {sidebarTab === 'projects' && (
+                <div key="projects" className="page-transition-enter">
+                  <Suspense fallback={
+                    <div style={{ textAlign: 'center', padding: 60 }}>
+                      <LoadingOutlined style={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                    </div>
+                  }>
+                    <ProjectPanel
+                      environments={environments}
+                      onRefreshEnvs={fetchEnvironments}
+                      isDarkMode={isDarkMode}
+                    />
+                  </Suspense>
+                </div>
+              )}
+
+              {/* 指令集标签页内容（内联渲染） */}
+              {sidebarTab === 'commands' && (
+                <div key="commands" className="page-transition-enter">
+                  <Suspense fallback={
+                    <div style={{ textAlign: 'center', padding: 60 }}>
+                      <LoadingOutlined style={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                    </div>
+                  }>
+                    <CommandsModal inline />
+                  </Suspense>
+                </div>
+              )}
+
+              {/* 设置标签页内容（内联渲染） */}
+              {sidebarTab === 'settings' && (
+                <div key="settings" className="page-transition-enter">
+                  <Suspense fallback={
+                    <div style={{ textAlign: 'center', padding: 60 }}>
+                      <LoadingOutlined style={{ fontSize: 32, color: 'var(--color-primary)' }} />
+                    </div>
+                  }>
+                    <SettingsModal
+                      inline
+                      onOpenTerminal={() => setTerminalOpen(true)}
+                      onSaved={handleSettingsSaved}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          </Layout.Content>
+        </div>
+
+        <Footer
+          className="app-footer"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            height: 24,
+            lineHeight: '24px',
+            padding: '0 12px',
+            fontSize: 12,
+            background: 'var(--bg-footer)',
+            color: 'var(--text-footer)',
+            borderTop: '1px solid var(--border-footer)',
+            userSelect: 'none',
+          }}
+        >
+          {/* 左侧：状态信息 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Conda 连接状态 */}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: beStatus === 'connected'
+                  ? 'var(--status-connected)'
+                  : beStatus === 'checking' ? 'var(--status-checking)' : 'var(--status-disconnected)',
+                display: 'inline-block',
+                boxShadow: beStatus === 'connected'
+                  ? '0 0 4px var(--status-connected)'
+                  : beStatus === 'checking' ? '0 0 4px var(--status-checking)' : '0 0 4px var(--status-disconnected)',
+              }} />
+              <span>{st?.text || t('status.checking')}</span>
+            </span>
+
+            {/* 激活环境 */}
+            {activatedEnv && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{
+                  color: 'var(--color-activated)',
+                  fontWeight: 500,
+                }}>
+                  {activatedEnv}
+                </span>
+                <span style={{ opacity: 0.6 }}>{t('env.activated')}</span>
+              </span>
+            )}
+
+            {/* 环境计数 */}
+            <span style={{ opacity: 0.7 }}>
+              {t('footer.envs', { n: environments.length })}
+            </span>
+          </div>
+
+          {/* 右侧：模式 + 版权 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+            {/* 小贴士轮播（带微动效） */}
+            {(t('footer.tips') || []).length > 0 && (
+              <span
+                key={tipIndex}
+                className="footer-tip"
                 style={{
-                  maxWidth: 500,
+                  fontSize: 11,
+                  fontStyle: 'italic',
+                  maxWidth: 320,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  margin: 0,
                 }}
-                title={projectDir}
               >
-                {projectDir}
-              </Tag>
-              <Tooltip title={t('project.changeDir')}>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<FolderOpenOutlined />}
-                  onClick={handleSelectProjectDir}
-                >
-                  {t('project.changeDir')}
-                </Button>
-              </Tooltip>
-            </Space>
-          ) : (
-            <Space size={4}>
-              <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>
-                {t('project.noProject')}
-              </Text>
-              <Button
-                size="small"
-                type="link"
-                icon={<FolderOpenOutlined />}
-                onClick={handleSelectProjectDir}
-              >
-                {t('project.selectDir')}
-              </Button>
-            </Space>
-          )}
-        </div>
-
-        {/* 当前激活环境显示 */}
-        {activatedEnv && (
-          <div style={{
-            background: isDarkMode ? '#262626' : '#e8f5e9',
-            borderBottom: `1px solid ${isDarkMode ? '#363636' : '#c8e6c9'}`,
-            padding: '8px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <Text type="secondary">{t('env.currentlyActivated') || '当前激活'}:</Text>
-            <Tag color="success" icon={<CheckCircleOutlined />}>{activatedEnv}</Tag>
-            <Button
-              size="small"
-              type="primary"
-              ghost
-              icon={<ConsoleSqlOutlined />}
-              onClick={() => handleOpenTerminal(activatedEnv)}
-            >
-              {t('env.openInTerminal')}
-            </Button>
-            {projectDir && (
-              <Tooltip title={t('project.cmdHint')}>
-                <Button
-                  size="small"
-                  type="primary"
-                  ghost
-                  icon={<CodeOutlined />}
-                  onClick={handleOpenProjectTerminal}
-                >
-                  {t('project.openProjectCmd')}
-                </Button>
-              </Tooltip>
+                {(t('footer.tips') || [])[tipIndex]}
+              </span>
             )}
+
+            {/* 版权 */}
+            <span style={{ opacity: 0.45 }}>
+              {t('footer.copyrighted', { year: new Date().getFullYear() })}
+            </span>
           </div>
-        )}
-        </div>
-        {/* ═══ 可滚动内容 ═══════════════════════════════════ */}
-
-        <Content style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
-          {!condaReady && !onboardingOpen && (
-            <Alert
-              type="warning"
-              showIcon
-              message={t('onboarding.bannerTitle')}
-              description={t('onboarding.bannerDesc')}
-              action={
-                <Button size="small" type="primary" onClick={() => setSettingsOpen(true)}>
-                  {t('app.settings')}
-                </Button>
-              }
-              style={{ marginBottom: 16 }}
-            />
-          )}
-          <EnvList
-            environments={environments}
-            loading={loading}
-            searchText={searchText}
-            onSearchChange={setSearchText}
-            onCreate={handleCreate}
-            onClone={handleClone}
-            onDelete={handleDeleteRequest}
-            onCopyActivate={handleCopyActivate}
-            onActivate={handleActivate}
-            activatedEnv={activatedEnv}
-            onRefresh={fetchEnvironments}
-            onManagePackages={handleManagePackages}
-            onExport={handleExport}
-            onCleanInvalid={handleCleanInvalid}
-            calcSignal={calcSignal}
-          />
-        </Content>
-
-        <Footer style={{ textAlign: 'center', color: '#999' }}>
-          {t('app.title')} &copy; {new Date().getFullYear()} — {t('app.desc')}
         </Footer>
       </Layout>
 
+      {/* ── 模态框 / 抽屉 (保持不变) ──────────────────────── */}
       {modalOpen && (
         <Suspense fallback={null}>
           <CreateModal
@@ -831,44 +1126,11 @@ export default function App() {
         </Suspense>
       )}
 
-      {settingsOpen && (
-        <Suspense fallback={null}>
-          <SettingsModal
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            onOpenTerminal={() => {
-              setTerminalOpen(true);
-              setSettingsOpen(false);
-            }}
-            onSaved={() => {
-              api.checkCondaStatus().then((res) => {
-                setCondaReady(!!res.data.ready);
-                if (res.data.ready) fetchEnvironments();
-              });
-              api.getSettings().then(res => {
-                setBasicOpMode(res.data.basic_op_mode || 'terminal');
-                setCondaExe(res.data.conda_path || 'conda');
-              }).catch(() => {});
-              setCalcSignal((n) => n + 1);
-            }}
-          />
-        </Suspense>
-      )}
-
       {terminalOpen && (
         <Suspense fallback={null}>
           <TerminalDrawer
             open={terminalOpen}
             onClose={() => setTerminalOpen(false)}
-          />
-        </Suspense>
-      )}
-
-      {quickCmdOpen && (
-        <Suspense fallback={null}>
-          <CommandsModal
-            open={quickCmdOpen}
-            onClose={() => setQuickCmdOpen(false)}
           />
         </Suspense>
       )}
@@ -894,7 +1156,7 @@ function DeleteConfirmModal({ envName, onConfirm, onCancel }) {
     <Modal
       title={
         <Space>
-          <ExclamationCircleOutlined style={{ color: '#faad14' }} />
+          <ExclamationCircleOutlined style={{ color: 'var(--color-warning)' }} />
           {t('delete.title')}
         </Space>
       }

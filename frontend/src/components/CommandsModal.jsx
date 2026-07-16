@@ -21,7 +21,7 @@ function CmdInput({ style: s, ...p }) {
   );
 }
 
-export default function CommandsModal({ open, onClose }) {
+export default function CommandsModal({ open, onClose, inline }) {
   const { t, locale } = useI18n();
   const { token } = theme.useToken();
   const [categories, setCategories] = useState([]);
@@ -42,10 +42,10 @@ export default function CommandsModal({ open, onClose }) {
   const isDark = token.colorBgBase !== '#fff';
 
   useEffect(() => {
-    if (open) {
+    if (inline || open) {
       loadCommands();
     }
-  }, [open]);
+  }, [inline, open]);
 
   const loadCommands = async () => {
     setLoading(true);
@@ -179,34 +179,21 @@ export default function CommandsModal({ open, onClose }) {
 
   const totalCount = categories.reduce((sum, c) => sum + (c.commands?.length || 0), 0);
 
-  const sidebarHoverBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-  const sidebarActiveBg = isDark ? 'rgba(76,175,80,0.15)' : 'rgba(76,175,80,0.08)';
-  const sidebarActiveColor = isDark ? '#81c784' : '#388e3c';
+  const sidebarHoverBg = isDark ? 'rgba(255,255,255,0.04)' : 'var(--bg-hover)';
+  const sidebarActiveBg = isDark ? 'rgba(76,175,80,0.15)' : 'var(--color-primary-bg)';
+  const sidebarActiveColor = isDark ? 'var(--color-primary-light)' : 'var(--color-primary)';
 
-  return (
-    <Modal
-      title={
-        <Space>
-          <CodeOutlined style={{ color: '#4CAF50' }} />
-          {t('app.quickCommands')}
-        </Space>
-      }
-      open={open}
-      onCancel={() => { onClose(); setEditingCategory(null); setEditingCommand(null); setShowAddCategory(false); }}
-      footer={null}
-      width={960}
-      destroyOnHidden
-      confirmLoading={loading}
-    >
-      <div style={{ display: 'flex', maxHeight: '70vh', minHeight: 380 }}>
+  // ── 指令集内容（双栏：侧边分类 + 右侧指令） ──────
+  const commandsContent = (
+    <div style={{ display: 'flex', maxHeight: inline ? 'calc(100vh - 200px)' : '70vh', minHeight: 380 }}>
         {/* ═══ 左侧分类栏 ═══════════════════════════════ */}
         <div
           className="cmd-sidebar"
           style={{
-            width: 200, flexShrink: 0,
+            width: 220, flexShrink: 0,
             borderRight: `1px solid ${token.colorBorderSecondary}`,
             paddingRight: 12, overflowY: 'auto', overflowX: 'hidden',
-            minWidth: 0, maxWidth: 200,
+            minWidth: 180, maxWidth: 280,
             display: 'flex', flexDirection: 'column',
           }}
         >
@@ -300,7 +287,7 @@ export default function CommandsModal({ open, onClose }) {
               <Title level={5} style={{ margin: 0 }}>{currentTitle}</Title>
               {currentCommands.length > 0 && (
                 <Tag style={{ margin: 0, lineHeight: '18px', fontSize: 12 }}>
-                  {currentCommands.length} {locale === 'zh-CN' ? '条' : 'items'}
+                  {t('commands.count', { n: currentCommands.length })}
                 </Tag>
               )}
             </Space>
@@ -360,7 +347,7 @@ export default function CommandsModal({ open, onClose }) {
                       onClick={() => copyCommand(cmd.command)}
                       className="cmd-btn"
                       style={{
-                        minWidth: 220, maxWidth: 300,
+                        minWidth: 'fit-content', maxWidth: 320,
                         padding: '6px 10px',
                         background: token.colorBgContainer,
                         border: `1px solid ${token.colorBorder}`,
@@ -423,6 +410,30 @@ export default function CommandsModal({ open, onClose }) {
           )}
         </div>
       </div>
+  );
+
+  // ── 内联模式：直接渲染内容 ──────────────────────
+  if (inline) {
+    return commandsContent;
+  }
+
+  // ── 弹窗模式 ────────────────────────────────────
+  return (
+    <Modal
+      title={
+        <Space>
+          <CodeOutlined style={{ color: 'var(--color-primary)' }} />
+          {t('app.quickCommands')}
+        </Space>
+      }
+      open={open}
+      onCancel={() => { onClose(); setEditingCategory(null); setEditingCommand(null); setShowAddCategory(false); }}
+      footer={null}
+      width={960}
+      destroyOnHidden
+      confirmLoading={loading}
+    >
+      {commandsContent}
     </Modal>
   );
 }

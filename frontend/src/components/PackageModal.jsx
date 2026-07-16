@@ -61,7 +61,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
   // 终端模式：构造命令并打开 CMD 终端
   const runPkgInTerminal = (command, logLabel) => {
     if (!window.electron?.invoke) {
-      message.error('当前环境不支持打开终端');
+      message.error(t('env.terminalUnavailable'));
       addLog('error', 'terminal:unavailable', command);
       return;
     }
@@ -125,7 +125,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
   const handleInstallRequirements = async () => {
     const filePath = await openFileDialog({
       title: t('pkg.selectReq'),
-      filters: [{ name: 'requirements.txt', extensions: ['txt'] }, { name: '所有文件', extensions: ['*'] }],
+      filters: [{ name: 'requirements.txt', extensions: ['txt'] }, { name: t('common.allFiles'), extensions: ['*'] }],
     });
     if (!filePath) return;
 
@@ -161,14 +161,14 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
       title: t('pkg.colVersion'),
       dataIndex: 'version',
       key: 'version',
-      width: 140,
+      minWidth: 120,
       render: (v) => v ? <Tag>{v}</Tag> : <Text type="secondary">-</Text>,
     },
     {
       title: t('pkg.colSource'),
       dataIndex: 'manager',
       key: 'manager',
-      width: 90,
+      minWidth: 90,
       render: (m) => (
         <Tag color={m === 'pip' ? 'blue' : 'green'}>{m || 'conda'}</Tag>
       ),
@@ -176,7 +176,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
     {
       title: t('pkg.colActions'),
       key: 'actions',
-      width: 140,
+      width: 90,
       render: (_, record) => (
         <Space size={4}>
           <Tooltip title={t('pkg.upgrade')}>
@@ -206,7 +206,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
     <Modal
       title={
         <Space>
-          <AppstoreOutlined style={{ color: '#4CAF50' }} />
+          <AppstoreOutlined style={{ color: 'var(--color-primary)' }} />
           <span>{t('pkg.title')}</span>
           {env && <Tag color="processing">{env.name}</Tag>}
         </Space>
@@ -230,7 +230,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
         <Select
           value={installManager}
           onChange={setInstallManager}
-          style={{ width: 100 }}
+          style={{ minWidth: 90, width: 'auto' }}
           options={[
             { value: 'conda', label: 'conda' },
             { value: 'pip', label: 'pip' },
@@ -252,7 +252,7 @@ export default function PackageModal({ env, open, onClose, onTaskSubmitted, basi
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
-          style={{ width: 280 }}
+          style={{ width: '100%', maxWidth: 360, minWidth: 180 }}
         />
         <Space>
           <Text type="secondary">{t('pkg.total', { n: filtered.length })}</Text>

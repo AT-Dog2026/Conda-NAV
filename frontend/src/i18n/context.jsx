@@ -25,6 +25,9 @@ export function I18nProvider({ children }) {
     const msg = messages[locale] || zhCN;
     const keys = keyPath.split('.');
     let result = keys.reduce((obj, k) => obj?.[k], msg);
+    if (result === undefined || result === null) return keyPath;
+    // 数组直接返回（如 footer.tips）
+    if (Array.isArray(result)) return result;
     if (typeof result !== 'string') return keyPath;
     // 替换 {n} {ms} 等插值变量
     return result.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`);
