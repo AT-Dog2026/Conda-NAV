@@ -428,15 +428,17 @@ ipcMain.handle('theme:set', (_e, isDark) => {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // 已有实例在运行，提示用户并退出
-  dialog.showMessageBoxSync({
-    type: 'info',
-    title: 'Conda NAV',
-    message: 'Conda NAV 正在运行，无法重复运行',
-    detail: 'Conda NAV 已在后台运行。您可以点击系统托盘图标或按 Ctrl+Shift+C 打开主窗口。',
-    buttons: ['确定'],
+  // 已有实例在运行，等 app ready 后再弹窗提示并退出
+  app.whenReady().then(() => {
+    dialog.showMessageBoxSync({
+      type: 'info',
+      title: 'Conda NAV',
+      message: 'Conda NAV 正在运行，无法重复运行',
+      detail: 'Conda NAV 已在后台运行。您可以点击系统托盘图标或按 Ctrl+Shift+C 打开主窗口。',
+      buttons: ['确定'],
+    });
+    app.quit();
   });
-  app.quit();
 } else {
   app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
     // 有人尝试启动第二个实例，将现有窗口提到前台
