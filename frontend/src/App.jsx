@@ -126,6 +126,12 @@ export default function App() {
       .then(res => {
         setBasicOpMode(res.data.basic_op_mode || 'terminal');
         setCondaExe(res.data.conda_path || 'conda');
+        // 水合主题模式（持久化在 settings.json）
+        const tm = res.data.theme_mode;
+        if (tm === 'dark' || tm === 'light' || tm === 'system') {
+          setThemeMode(tm);
+          window.electron?.invoke('theme:set', tm);
+        }
       })
       .catch(() => {});
   }, [t]);
@@ -140,10 +146,19 @@ export default function App() {
         addLog('success', t('env.activated'), name);
       });
       unsubs.push(unsub1);
-      const unsub2 = window.electron.on('tray:create-env', () => {
-        handleCreate();
+      // 悬浮窗/托盘切换主题时同步到主应用
+      const unsub3 = window.electron.on('theme:changed', ({ mode, isDark } = {}) => {
+        if (mode === 'dark' || mode === 'light' || mode === 'system') setThemeMode(mode);
+        if (typeof isDark === 'boolean') setSystemIsDark(isDark);
       });
-      unsubs.push(unsub2);
+      unsubs.push(unsub3);
+      // 托盘请求切换侧边栏 tab（更多环境… → envs）
+      const unsub4 = window.electron.on('tray:open-tab', (tab) => {
+        if (tab === 'envs' || tab === 'projects' || tab === 'settings') {
+          setSidebarTab(tab);
+        }
+      });
+      unsubs.push(unsub4);
     }
     return () => unsubs.forEach(fn => { try { fn(); } catch {} });
   }, [t]);
@@ -945,6 +960,7 @@ export default function App() {
                       environments={environments}
                       onRefreshEnvs={fetchEnvironments}
                       isDarkMode={isDarkMode}
+                      currentProjectDir={projectDir}
                     />
                   </Suspense>
                 </div>

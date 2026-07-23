@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conda NAV</title>
+  <link rel="stylesheet" href="ball.css" />
+</head>
+<body>
+  <div class="ball" id="ball" title="Conda NAV">
+    <svg class="ball-icon" viewBox="0 0 16 16" fill="none">
+      <path d="M8 1 L14 5 V11 L8 15 L2 11 V5 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+      <circle cx="8" cy="8" r="2" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <!-- SVG 阴影层：使用 feGaussianBlur 创建圆形阴影，
+       比 CSS box-shadow / radial-gradient 在 Electron 透明窗口中更可靠，
+       无矩形伪影、无边缘裁剪问题。放在 ball 之后以便 ~ 兄弟选择器工作 -->
+  <svg class="ball-shadow-svg" viewBox="0 0 120 120" aria-hidden="true">
+    <defs>
+      <filter id="shadowBlur" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+        <feOffset dx="0" dy="2" result="offsetblur"/>
+        <feComponentTransfer>
+          <feFuncA type="linear" slope="0.35"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="shadowBlurHover" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+        <feOffset dx="0" dy="3" result="offsetblur"/>
+        <feComponentTransfer>
+          <feFuncA type="linear" slope="0.45"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="glowBlur" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="4"/>
+        <feComponentTransfer>
+          <feFuncA type="linear" slope="0.6"/>
+        </feComponentTransfer>
+      </filter>
+    </defs>
+    <circle class="shadow-base" cx="60" cy="60" r="24" filter="url(#shadowBlur)"/>
+    <circle class="shadow-hover" cx="60" cy="60" r="24" filter="url(#shadowBlurHover)"/>
+    <circle class="glow-ring" cx="60" cy="60" r="28" fill="none" stroke="#4CAF50" stroke-width="6" filter="url(#glowBlur)"/>
+  </svg>
+  <script src="ball.js"></script>
+</body>
+</html>

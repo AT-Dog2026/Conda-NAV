@@ -45,6 +45,14 @@ function loadSettings() {
         basic_op_mode: raw.basic_op_mode ?? 'terminal',
         activated_env: raw.activated_env ?? null,
         projects: Array.isArray(raw.projects) ? raw.projects : [],
+        // 主题模式：'dark' | 'light' | 'system'（主应用 + 悬浮窗 + 悬浮球共享）
+        theme_mode: ['dark', 'light', 'system'].includes(raw.theme_mode) ? raw.theme_mode : 'dark',
+        // 悬浮窗状态：{ x, y, width, height, docked, mode, expanded }
+        widget_state: (raw.widget_state && typeof raw.widget_state === 'object') ? raw.widget_state : null,
+        // 悬浮球状态：{ x, y }
+        ball_state: (raw.ball_state && typeof raw.ball_state === 'object') ? raw.ball_state : null,
+        // 悬浮球是否可见（默认 true）
+        ball_visible: raw.ball_visible !== undefined ? !!raw.ball_visible : true,
       };
       return _settingsCache;
     }
@@ -61,6 +69,10 @@ function loadSettings() {
     basic_op_mode: 'terminal',
     activated_env: null,
     projects: [],
+    theme_mode: 'dark',
+    widget_state: null,
+    ball_state: null,
+    ball_visible: true,
   };
   return _settingsCache;
 }
@@ -89,6 +101,10 @@ function saveSettings(data) {
     basic_op_mode: data.basic_op_mode ?? current.basic_op_mode ?? 'terminal',
     activated_env: data.activated_env !== undefined ? data.activated_env : (current.activated_env ?? null),
     projects: data.projects !== undefined ? data.projects : (current.projects ?? []),
+    theme_mode: ['dark', 'light', 'system'].includes(data.theme_mode) ? data.theme_mode : (current.theme_mode ?? 'dark'),
+    widget_state: data.widget_state !== undefined ? data.widget_state : (current.widget_state ?? null),
+    ball_state: data.ball_state !== undefined ? data.ball_state : (current.ball_state ?? null),
+    ball_visible: data.ball_visible !== undefined ? !!data.ball_visible : (current.ball_visible ?? true),
   }, null, 2), 'utf-8');
   // 写入后再次清缓存，确保后续读取命中磁盘最新数据
   invalidateSettingsCache();

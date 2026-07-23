@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, FolderOpenOutlined, DeleteOutlined, EditOutlined,
-  ConsoleSqlOutlined, CodeOutlined, SearchOutlined,
+  ConsoleSqlOutlined, CodeOutlined, SearchOutlined, CheckCircleOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useI18n } from '../i18n/context';
@@ -15,7 +15,7 @@ import { addLog } from './TerminalDrawer';
 const { Text } = Typography;
 const { Option } = Select;
 
-export default function ProjectPanel({ environments, onRefreshEnvs, isDarkMode }) {
+export default function ProjectPanel({ environments, onRefreshEnvs, isDarkMode, currentProjectDir }) {
   const { t } = useI18n();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -261,6 +261,7 @@ export default function ProjectPanel({ environments, onRefreshEnvs, isDarkMode }
                 getEnvColor={getEnvColor}
                 t={t}
                 isDarkMode={isDarkMode}
+                isCurrentProject={project.path === currentProjectDir}
               />
             ))}
           </div>
@@ -414,7 +415,7 @@ export default function ProjectPanel({ environments, onRefreshEnvs, isDarkMode }
 }
 
 // ── 项目列表项（紧凑行布局） ─────────────────────────
-function ProjectCard({ project, highlight, onEdit, onDelete, onOpenCmd, getEnvColor, t, isDarkMode }) {
+function ProjectCard({ project, highlight, onEdit, onDelete, onOpenCmd, getEnvColor, t, isDarkMode, isCurrentProject }) {
   const highlightText = (text) => {
     if (!highlight || !text) return text;
     const idx = text.toLowerCase().indexOf(highlight.toLowerCase());
@@ -430,6 +431,16 @@ function ProjectCard({ project, highlight, onEdit, onDelete, onOpenCmd, getEnvCo
 
   const envColor = getEnvColor(project.boundEnv);
 
+  const handleSwitchProject = async () => {
+    try {
+      await api.setProjectDir(project.path);
+      message.success(t('project.setSuccess'));
+      addLog('success', t('project.setSuccess'), project.path);
+    } catch (err) {
+      message.error(t('project.setFail'));
+    }
+  };
+
   return (
     <div style={{
       display: 'flex',
@@ -437,7 +448,9 @@ function ProjectCard({ project, highlight, onEdit, onDelete, onOpenCmd, getEnvCo
       gap: 12,
       padding: '10px 16px',
       borderBottom: '1px solid var(--border-table)',
-      transition: 'background 0.15s',
+      borderLeft: isCurrentProject ? '3px solid var(--color-success)' : '3px solid transparent',
+      background: isCurrentProject ? 'var(--color-success-bg)' : 'transparent',
+      transition: 'background 0.15s, border-color 0.15s',
     }}
       className="project-list-row"
       onDoubleClick={onOpenCmd}
@@ -477,6 +490,15 @@ function ProjectCard({ project, highlight, onEdit, onDelete, onOpenCmd, getEnvCo
 
       {/* 操作按钮 */}
       <Space size={2} style={{ flexShrink: 0 }}>
+        <Tooltip title={t('project.switchProject')}>
+          <Button
+            size="small"
+            type="text"
+            icon={<CheckCircleOutlined />}
+            onClick={(e) => { e.stopPropagation(); handleSwitchProject(); }}
+            style={{ color: 'var(--color-success)', fontSize: 15 }}
+          />
+        </Tooltip>
         <Tooltip title={project.boundEnv ? t('project.openProjectCmdBtn') : t('project.bindEnvFirst')}>
           <Button
             size="small"

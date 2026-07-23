@@ -1,19 +1,34 @@
-# Node
+# Node.js
 node_modules/
-dist/
+node_modules/.cache/
+package-lock.json
+
+# Vite / Frontend
+frontend/node_modules/
+frontend/package-lock.json
+frontend/dist/
+*.local
 
 # Electron
 release/
-
-# Legacy / runtime
+build/
+!build/icon.png
+dist/
+# Runtime / Cache
 backend/
 *.db
 debug.log
+npm-debug.log*
 
-# IDE
+# Configuration
+.env*
+!.env.example
+
+# IDE / Tools
 .vscode/
 .idea/
 .codebuddy
+.trae/
 
 # OS
 .DS_Store

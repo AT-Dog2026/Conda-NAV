@@ -83,7 +83,8 @@ export default function CreateModal({ open, mode, cloneSource, importFilePath, i
           message={isImportReq
             ? t('create.importFromReq', { file: importFilePath })
             : t('create.importFrom', { file: importFilePath })}
-          type="info" showIcon
+          type={isImportReq ? 'warning' : 'info'}
+          showIcon
           style={{ marginBottom: 16 }}
         />
       )}

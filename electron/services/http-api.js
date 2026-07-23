@@ -224,10 +224,10 @@ async function handleRoute(req, m, p, b) {
   // ── 开机自启 ──────────────────────────────────────
   if (m === 'POST' && p === '/api/settings/auto-start') {
     const { app } = require('electron');
-    app.setLoginItemSettings({
-      openAtLogin: !!b.enabled,
-      path: app.getPath('exe'),
-    });
+    const autoStart = require('./auto-start');
+    // __dirname 在 services/ 下，electron 目录是其父目录
+    const electronDir = require('path').join(__dirname, '..');
+    await autoStart.setAutoStart(app, electronDir, !!b.enabled);
     settings.saveSettings({ auto_start: !!b.enabled });
     return { code: 200, data: { success: true } };
   }

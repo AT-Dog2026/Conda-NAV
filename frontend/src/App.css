@@ -106,8 +106,8 @@
   --color-primary: #4CAF50;            /* Material Green 500 */
   --color-primary-hover: #43A047;      /* Material Green 600 */
   --color-primary-light: #81C784;      /* Material Green 300 */
-  --color-primary-bg: rgba(76, 175, 80, 0.12);
-  --color-primary-border: rgba(76, 175, 80, 0.3);
+  --color-primary-bg: rgba(76, 175, 80, 0.18);
+  --color-primary-border: rgba(76, 175, 80, 0.35);
   --color-primary-ring: rgba(76, 175, 80, 0.2);
 
   /* Functional */
@@ -405,6 +405,7 @@ body {
 }
 .cmd-sidebar-item.active {
   font-weight: 600;
+  color: var(--color-primary);
 }
 .cmd-sidebar-item.active::before {
   background: var(--color-primary);
@@ -444,12 +445,31 @@ body {
   transition: all 0.15s ease;
   border-bottom: 1px solid var(--border-light);
   border-radius: 0;
+  position: relative;
+}
+.cmd-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+  transition: background 0.2s ease;
 }
 .cmd-item:last-child {
   border-bottom: none;
 }
 .cmd-item:hover {
-  background: var(--color-primary-bg) !important;
+  background: var(--bg-hover) !important;
+}
+.cmd-item:hover::before {
+  background: var(--color-primary);
+}
+.cmd-item:hover .cmd-btn {
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
 }
 .cmd-item .cmd-item-desc {
   flex: 1;
@@ -558,4 +578,21 @@ body {
 /* ── 隐藏全局滚动条 ──────────────────────────────── */
 ::-webkit-scrollbar {
   display: none;
+}
+
+/* 下拉菜单样式增强 */
+.ant-dropdown-menu {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+.ant-dropdown-menu-item {
+  margin: 2px 4px !important;
+  border-radius: 6px !important;
+  transition: background 0.15s, color 0.15s;
+}
+.ant-dropdown-menu-item:hover {
+  background: var(--color-primary-bg) !important;
+  color: var(--color-primary) !important;
 }

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Conda NAV</title>
+  <link rel="stylesheet" href="widget.css" />
+</head>
+<body class="panel">
+  <div class="widget-root" id="widgetRoot">
+
+    <!-- ═══ 顶栏（拖拽手柄） ═══ -->
+    <header class="widget-header" id="dragHandle">
+      <div class="widget-brand">
+        <span class="brand-logo" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1 L14 5 V11 L8 15 L2 11 V5 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="8" cy="8" r="2" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="brand-text">Conda NAV</span>
+      </div>
+      <div class="widget-header-actions" style="-webkit-app-region: no-drag;">
+        <button class="icon-btn" id="closeBtn" title="关闭" aria-label="关闭">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M4 4 L12 12 M12 4 L4 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══ 状态 banner ═══ -->
+    <section class="widget-status" id="statusBanner">
+      <span class="status-dot" id="statusDot"></span>
+      <div class="status-text">
+        <div class="status-label" id="statusLabel">未激活环境</div>
+        <div class="status-sub" id="statusSub"></div>
+      </div>
+    </section>
+
+    <!-- ═══ Hero 操作（高频） ═══ -->
+    <section class="widget-hero" id="heroSection">
+      <button class="hero-btn primary" id="heroProjectTerminal" disabled>
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4 H14 V12 H2 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <path d="M4 7 L6 9 L4 11 M8 11 H12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span>项目目录终端</span>
+      </button>
+      <button class="hero-btn" id="heroTerminal" disabled>
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4 H14 V12 H2 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <path d="M4 7 L6 9 L4 11 M8 11 H12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span>打开终端</span>
+      </button>
+      <button class="hero-btn" id="heroMainWindow">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+          <path d="M2 2 H14 V14 H2 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <path d="M6 2 V6 M10 2 V6 M2 6 H6 M10 6 H14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <span>打开主界面</span>
+      </button>
+    </section>
+
+    <!-- ═══ 环境列表 ═══ -->
+    <section class="widget-envlist" id="envListSection">
+      <div class="envlist-header">
+        <span>切换环境</span>
+      </div>
+      <div class="envlist-scroll" id="envListScroll"></div>
+    </section>
+
+    <!-- ═══ 其他动作列表 ═══ -->
+    <section class="widget-actions" id="actionsList">
+      <!-- 渲染时填充 -->
+    </section>
+
+    <!-- ═══ 条状形态：展开/收起按钮 ═══ -->
+    <button class="bar-expand" id="barExpandBtn" hidden aria-label="展开">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+        <path d="M4 6 L8 10 L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+  </div>
+
+  <script src="widget.js"></script>
+</body>
+</html>

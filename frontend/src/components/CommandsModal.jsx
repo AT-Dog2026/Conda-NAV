@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Space, Typography, Input, message, Popconfirm, theme, Tag } from 'antd';
+import { Modal, Button, Space, Typography, Input, message, Popconfirm, Tag } from 'antd';
 import {
   CodeOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
   ReloadOutlined, AppstoreOutlined, TagOutlined,
@@ -11,11 +11,10 @@ const { Text, Title } = Typography;
 
 // 独立组件，避免每渲染重创建导致 Input 卸载重挂载
 function CmdInput({ style: s, ...p }) {
-  const { token } = theme.useToken();
   return (
     <Input
       size="small"
-      style={{ width: '100%', marginBottom: 6, background: token.colorBgContainer, ...(s || {}) }}
+      style={{ width: '100%', marginBottom: 6, background: 'var(--bg-card)', ...(s || {}) }}
       {...p}
     />
   );
@@ -23,7 +22,6 @@ function CmdInput({ style: s, ...p }) {
 
 export default function CommandsModal({ open, onClose, inline }) {
   const { t, locale } = useI18n();
-  const { token } = theme.useToken();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -38,8 +36,6 @@ export default function CommandsModal({ open, onClose, inline }) {
   const [commandText, setCommandText] = useState('');
   const [commandDesc, setCommandDesc] = useState('');
   const [commandDescEn, setCommandDescEn] = useState('');
-
-  const isDark = token.colorBgBase !== '#fff';
 
   useEffect(() => {
     if (inline || open) {
@@ -179,19 +175,20 @@ export default function CommandsModal({ open, onClose, inline }) {
 
   const totalCount = categories.reduce((sum, c) => sum + (c.commands?.length || 0), 0);
 
-  const sidebarHoverBg = isDark ? 'rgba(255,255,255,0.04)' : 'var(--bg-hover)';
-  const sidebarActiveBg = isDark ? 'rgba(76,175,80,0.15)' : 'var(--color-primary-bg)';
-  const sidebarActiveColor = isDark ? 'var(--color-primary-light)' : 'var(--color-primary)';
+  // 直接使用主窗口 CSS 变量，避免 isDark 三元判断，确保与全局主题完全一致
+  const sidebarHoverBg = 'var(--bg-hover)';
+  const sidebarActiveBg = 'var(--color-primary-bg)';
+  const sidebarActiveColor = 'var(--color-primary)';
 
   // ── 指令集内容（双栏：侧边分类 + 右侧指令） ──────
   const commandsContent = (
-    <div style={{ display: 'flex', maxHeight: inline ? 'calc(100vh - 200px)' : '70vh', minHeight: 380 }}>
+    <div style={{ display: 'flex', maxHeight: inline ? 'calc(100vh - 140px)' : '85vh', minHeight: 380 }}>
         {/* ═══ 左侧分类栏 ═══════════════════════════════ */}
         <div
           className="cmd-sidebar"
           style={{
             width: 220, flexShrink: 0,
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
+            borderRight: '1px solid var(--border-primary)',
             paddingRight: 12, overflowY: 'auto', overflowX: 'hidden',
             minWidth: 180, maxWidth: 280,
             display: 'flex', flexDirection: 'column',
@@ -199,7 +196,7 @@ export default function CommandsModal({ open, onClose, inline }) {
         >
           {/* 添加分类按钮 - 顶部 */}
           {showAddCategory ? (
-            <div style={{ padding: '8px 0', marginBottom: 8, borderRadius: 8, background: token.colorBgElevated, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 0', marginBottom: 8, borderRadius: 8, background: 'var(--bg-elevated)', minWidth: 0, overflow: 'hidden' }}>
               <div style={{ padding: '0 4px', minWidth: 0 }}>
                 <CmdInput value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder={t('commands.categoryName')} onPressEnter={handleAddCategory} />
                 <CmdInput value={categoryNameEn} onChange={(e) => setCategoryNameEn(e.target.value)} placeholder="English" onPressEnter={handleAddCategory} />
@@ -224,7 +221,7 @@ export default function CommandsModal({ open, onClose, inline }) {
             className={`cmd-sidebar-item ${activeCategoryId === null ? 'active' : ''}`}
             onClick={() => setActiveCategoryId(null)}
             style={{
-              color: activeCategoryId === null ? sidebarActiveColor : token.colorText,
+              color: activeCategoryId === null ? sidebarActiveColor : 'var(--text-primary)',
               background: activeCategoryId === null ? sidebarActiveBg : 'transparent',
             }}
           >
@@ -247,7 +244,7 @@ export default function CommandsModal({ open, onClose, inline }) {
                 onClick={() => { if (!isEditing) setActiveCategoryId(cat.id); }}
                 style={{
                   cursor: isEditing ? 'default' : 'pointer',
-                  color: isActive ? sidebarActiveColor : token.colorText,
+                  color: isActive ? sidebarActiveColor : 'var(--text-primary)',
                   background: isEditing ? 'transparent' : isActive ? sidebarActiveBg : 'transparent',
                 }}
               >
@@ -312,12 +309,12 @@ export default function CommandsModal({ open, onClose, inline }) {
 
           {/* 空状态 */}
           {categories.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: token.colorTextSecondary }}>
+            <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-secondary)' }}>
               <CodeOutlined style={{ fontSize: 48, marginBottom: 12, display: 'block', opacity: 0.3 }} />
               <div>{t('commands.noCategories')}</div>
             </div>
           ) : currentCommands.length === 0 && !editingCommand?.isNew ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: token.colorTextQuaternary }}>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)' }}>
               <Text type="secondary">{t('commands.noCommands')}</Text>
             </div>
           ) : (
@@ -326,7 +323,7 @@ export default function CommandsModal({ open, onClose, inline }) {
                 const isEditing = editingCommand?.command?.id === cmd.id;
                 if (isEditing) {
                   return (
-                    <div key={cmd.id} className="cmd-edit-card" style={{ background: token.colorBgElevated, border: `1px solid ${token.colorBorder}` }}>
+                    <div key={cmd.id} className="cmd-edit-card" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-primary)' }}>
                       <CmdInput value={commandText} onChange={(e) => setCommandText(e.target.value)} placeholder={t('commands.commandPlaceholder')} />
                       <CmdInput value={commandDesc} onChange={(e) => setCommandDesc(e.target.value)} placeholder={t('commands.descPlaceholder')} />
                       <CmdInput value={commandDescEn} onChange={(e) => setCommandDescEn(e.target.value)} placeholder="English description" />
@@ -341,7 +338,7 @@ export default function CommandsModal({ open, onClose, inline }) {
                   <div
                     key={cmd.id}
                     className="cmd-item"
-                    style={{ background: token.colorBgElevated }}
+                    style={{ background: 'var(--bg-elevated)' }}
                   >
                     <button
                       onClick={() => copyCommand(cmd.command)}
@@ -349,8 +346,8 @@ export default function CommandsModal({ open, onClose, inline }) {
                       style={{
                         minWidth: 'fit-content', maxWidth: 320,
                         padding: '6px 10px',
-                        background: token.colorBgContainer,
-                        border: `1px solid ${token.colorBorder}`,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-primary)',
                         borderRadius: 6,
                         fontSize: 14,
                         cursor: 'pointer',
@@ -360,7 +357,7 @@ export default function CommandsModal({ open, onClose, inline }) {
                         WebkitLineClamp: 5,
                         overflow: 'hidden',
                         lineHeight: 1.5,
-                        color: token.colorText,
+                        color: 'var(--text-primary)',
                         flexShrink: 0,
                         textAlign: 'left',
                       }}
@@ -370,18 +367,18 @@ export default function CommandsModal({ open, onClose, inline }) {
                     </button>
                     <div className="cmd-item-desc">
                       {activeCategoryId === null && cmd._catName && (
-                        <span className="cmd-cat-tag" style={{ background: token.colorFillSecondary, color: token.colorTextSecondary }}>
+                        <span className="cmd-cat-tag" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
                           {cmd._catName}
                         </span>
                       )}
                       <div style={{
-                        fontSize: 14, color: token.colorText, lineHeight: 1.6,
+                        fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6,
                         display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden',
                       }}>
                         {locale === 'zh-CN' ? cmd.description : cmd.descriptionEn}
                       </div>
                       {locale === 'zh-CN' && cmd.descriptionEn && (
-                        <div style={{ fontSize: 13, color: token.colorTextSecondary, marginTop: 3 }}>{cmd.descriptionEn}</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>{cmd.descriptionEn}</div>
                       )}
                     </div>
                     <div className="cmd-item-actions">
@@ -396,7 +393,7 @@ export default function CommandsModal({ open, onClose, inline }) {
 
               {/* 新增指令表单 */}
               {editingCommand?.isNew && (
-                <div className="cmd-edit-card new" style={{ background: token.colorBgElevated }}>
+                <div className="cmd-edit-card new" style={{ background: 'var(--bg-elevated)' }}>
                   <CmdInput value={commandText} onChange={(e) => setCommandText(e.target.value)} placeholder={t('commands.commandPlaceholder')} onPressEnter={handleSaveCommand} />
                   <CmdInput value={commandDesc} onChange={(e) => setCommandDesc(e.target.value)} placeholder={t('commands.descPlaceholder')} onPressEnter={handleSaveCommand} />
                   <CmdInput value={commandDescEn} onChange={(e) => setCommandDescEn(e.target.value)} placeholder="English description" onPressEnter={handleSaveCommand} />
